@@ -1,0 +1,26 @@
+[profile.default]
+src = "contracts"
+test = "test"
+libs = ["lib"]
+
+# All generated artefacts live under tmp/ so the repository stays clean
+# (see the submission rules: no compiled or runtime output outside tmp/).
+out = "tmp/out"
+cache_path = "tmp/cache"
+
+# Pin the compiler version (matches the labs)
+solc_version = "0.8.35"
+
+# The EventTicket constructor carries the full event configuration; the
+# IR pipeline avoids the legacy codegen's stack-depth limit, and the
+# optimizer keeps the factory (which embeds EventTicket's creation code)
+# under the EIP-170 deployment size limit.
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+# Resolve the OpenZeppelin import to the library installed with
+# `forge install OpenZeppelin/openzeppelin-contracts`
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"
+]

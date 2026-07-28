@@ -1,0 +1,61 @@
+# Configuration for the ChainTicket application.
+#
+# network selects the active profile below. Development and the demo run on
+# a local anvil node started with a 1-second block interval (`npm run node`)
+# so block-number timing advances with the wall clock; Sepolia has fixed
+# 12-second slots. blockSeconds is the interval the clients use to convert
+# between human time ("entry in 5 minutes") and block numbers.
+network: anvil
+
+networks:
+  anvil:
+    url: ws://127.0.0.1:8545
+    chainId: 31337
+    blockSeconds: 1
+  sepolia:
+    urlEnv: SEPOLIA_RPC_URL # e.g. a wss:// endpoint from Infura/Alchemy
+    chainId: 11155111
+    blockSeconds: 12
+
+# The platform's pricing policy, set on the factory at deployment (on-chain
+# and immutable). Benchmarked against Eventbrite (1.19 AUD + 5.35%) and
+# slightly undercut, at the PoC accounting peg of 1 ETH = 2,600 AUD:
+# 0.0004 ETH ≈ 1.04 AUD fixed, plus 5%. sweepDelayBlocks is how many
+# blocks after an event's end the platform must wait before sweeping
+# unclaimed refunds (small for the demo; think days in production).
+platform:
+  feeFixedEth: "0.0004"
+  feeBps: 500
+  sweepDelayBlocks: 600
+
+# The demo identities. Usernames and passwords exist only in the local user
+# store (provisioned into the database by the seed script, passwords stored
+# salted-and-hashed); the chain only ever sees the derived addresses. The
+# private keys below are anvil's deterministic dev keys - publicly known,
+# NEVER use them on a real network. On Sepolia the deployer key comes from
+# the SEPOLIA_PRIVATE_KEY environment variable instead.
+accounts:
+  platform:
+    privateKey: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+    password: demo123
+  org:
+    privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    password: demo123
+  user1:
+    privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+    password: demo123
+  user2:
+    privateKey: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+    password: demo123
+  user3:
+    privateKey: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
+    password: demo123
+  val:
+    privateKey: "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"
+    password: demo123
+
+# The shared off-chain database (SQLite): the local user store, the indexed
+# views, and the append-only history. Lives under tmp/ as a generated
+# artefact.
+database:
+  path: tmp/chainticket.db

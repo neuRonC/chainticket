@@ -1,0 +1,12 @@
+# All runtime-generated files are kept under tmp/ (forge out/cache, the
+# indexer database, anvil state, logs). Nothing in it is hand-written.
+tmp/
+
+# Installed dependencies - regenerate with `npm install` and
+# `forge install OpenZeppelin/openzeppelin-contracts`
+node_modules/
+lib/
+
+# Environment files
+.env
+.env.*
