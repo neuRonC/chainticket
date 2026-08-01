@@ -208,15 +208,24 @@ const boldRed = (text: string) => `\x1b[1;31m${text}\x1b[0m`;
 const red = (text: string) => `\x1b[31m${text}\x1b[0m`;
 const grey = (text: string) => `\x1b[90m${text}\x1b[0m`;
 const green = (text: string) => `\x1b[32m${text}\x1b[0m`;
+const cyan = (text: string) => `\x1b[36m${text}\x1b[0m`;
 
 // Print a highlighted success line.
 export function showSuccess(message: string) {
   console.log(green(message));
 }
 
-// Print a plain failure line (expected rejections, e.g. a failed login).
+// Print a highlighted failure line (expected rejections, e.g. a failed
+// login, or "nothing to do" - anything that stops the current action, so
+// it isn't mistaken for plain progress output).
 export function showFailure(message: string) {
   console.log(red(message));
+}
+
+// The recurring "who's logged in" status line shown at the top of every
+// menu pass, coloured apart from both progress and failure output.
+export function showIdentity(username: string, address: string, balanceWei: bigint | string) {
+  console.log(cyan(`👤 user: ${username} · wallet: ${address} · balance: ${eth(balanceWei)}`));
 }
 
 // True when a transaction failed because the wallet cannot cover it.

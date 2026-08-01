@@ -6,8 +6,8 @@
  *
  * The deployer key comes from config.yaml on anvil (the `platform` demo
  * account) or from the SEPOLIA_PRIVATE_KEY environment variable elsewhere;
- * whoever that key belongs to becomes the platform (fee recipient,
- * entitled to sweep, and the keeper's signer).
+ * whoever that key belongs to becomes the platform (entitled to sweep, and
+ * the keeper's signer).
  */
 
 import type { Address, Hex } from "viem";
@@ -30,8 +30,6 @@ export async function deployPlatform(chain: Chain, config: Config): Promise<Addr
     chain,
     loadArtifact("EventFactory"),
     deployerKey,
-    config.feeFixedWei,
-    BigInt(config.feeBps),
     BigInt(config.sweepDelayBlocks),
   );
   saveDeployment({

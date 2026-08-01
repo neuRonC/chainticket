@@ -7,11 +7,11 @@
  * has authorised is turned away ("You are not authorised as a validator
  * for any event"). Check-in only works during the event window (entry
  * block to end block) - the contract enforces it, the UI shows the phase.
- * Each confirmation signs markUsed on-chain: that signature from an
- * organiser-authorised address is what carries the real-world fact "this
- * person entered" onto the chain. Mistakes are undone with a revocation,
- * itself recorded on-chain; the validator's gas is reimbursed from the
- * organiser's deposit.
+ * The holder must also produce the check-in code they set on their ticket
+ * (simulating a QR code); markUsed only accepts a code matching the hash
+ * committed on-chain. That signature from an organiser-authorised address,
+ * carrying the correct code, is what records the real-world fact "this
+ * person entered" onto the chain. The validator pays its own gas.
  */
 
 import type { Address } from "viem";
@@ -20,7 +20,7 @@ import { connect } from "./chain";
 import { requireFactory } from "./deployment";
 import { openDatabase, type EventRow } from "./db";
 import { login, usernameOf } from "./auth";
-import { isValidatorOn, markUsed, revokeValidation } from "./ticketing";
+import { isValidatorOn, markUsed } from "./ticketing";
 import * as ui from "./ui";
 
 async function main() {
@@ -68,94 +68,83 @@ async function main() {
 
   for (;;) {
     const currentBlock = Number(await chain.publicClient.getBlockNumber());
+    const balance = await chain.getBalance(session.address);
+    ui.showIdentity(session.username, session.address, balance);
     ui.showInfo(`Current status: ${ui.eventPhase(db.getEvent(ev.event_id)!, currentBlock, config.blockSeconds)}`);
 
     const action = await ui.askAction("Action:", [
       { name: "Validate ticket", value: "checkin" },
-      { name: "Revoke a mistaken validation", value: "revoke" },
+      { name: "Refresh", value: "refresh" },
       { name: "Exit", value: "exit" },
     ]);
     if (action === "exit") break;
 
     try {
       if (action === "checkin") {
-        // The check-in desk loop: empty input returns to the menu.
+        // The check-in desk loop: empty input, or CTRL+C mid-ticket, both
+        // return to the "Ticket ID" prompt rather than the outer menu.
         for (;;) {
-          const query = await ui.askQuery("Ticket ID or @username (empty to go back):");
-          if (!query) break;
+          try {
+            const query = await ui.askQuery("Ticket ID or @username (empty to go back):");
+            if (!query) break;
 
-          // Resolve @username to that user's tickets for this event.
-          let ticketId: number | undefined;
-          if (query.startsWith("@")) {
-            const user = db.getUser(query.slice(1));
-            if (!user) {
-              ui.showFailure("No such user");
+            // Resolve @username to that user's tickets for this event.
+            let ticketId: number | undefined;
+            if (query.startsWith("@")) {
+              const user = db.getUser(query.slice(1));
+              if (!user) {
+                ui.showFailure("No such user");
+                continue;
+              }
+              const theirs = db
+                .listTicketsByOwner(user.address)
+                .filter((t) => t.event_id === ev.event_id);
+              if (theirs.length === 0) {
+                ui.showFailure(`${query.slice(1)} holds no ticket for this event -> entry denied`);
+                continue;
+              }
+              const picked = await ui.askTicket(
+                `${query.slice(1)}'s tickets:`,
+                theirs.map((row) => ({
+                  row,
+                  label: `Ticket #${row.ticket_id} · ${row.status}`,
+                })),
+              );
+              if (!picked) continue;
+              ticketId = picked.ticket_id;
+            } else {
+              ticketId = Number(query);
+              if (!Number.isInteger(ticketId)) {
+                ui.showFailure("Enter a ticket ID or @username");
+                continue;
+              }
+            }
+
+            // Fast lookup in the indexed view - no chain round-trip yet.
+            const ticket = db.getTicket(ev.event_id, ticketId);
+            if (!ticket) {
+              ui.showFailure(`Ticket #${ticketId} does not belong to this event -> entry denied`);
               continue;
             }
-            const theirs = db
-              .listTicketsByOwner(user.address)
-              .filter((t) => t.event_id === ev.event_id);
-            if (theirs.length === 0) {
-              ui.showFailure(`${query.slice(1)} holds no ticket for this event -> entry denied`);
+            const holder = usernameOf(db, ticket.owner) ?? ticket.owner;
+            if (ticket.status !== "Valid") {
+              ui.showFailure(`Ticket #${ticketId} · holder ${holder} · ${ticket.status} ✘ -> entry denied`);
               continue;
             }
-            const picked = await ui.askTicket(
-              `${query.slice(1)}'s tickets:`,
-              theirs.map((row) => ({
-                row,
-                label: `Ticket #${row.ticket_id} · ${row.status}`,
-              })),
-            );
-            if (!picked) continue;
-            ticketId = picked.ticket_id;
-          } else {
-            ticketId = Number(query);
-            if (!Number.isInteger(ticketId)) {
-              ui.showFailure("Enter a ticket ID or @username");
-              continue;
-            }
-          }
+            ui.showSuccess(`Ticket #${ticketId} · holder ${holder} · VALID ✔`);
 
-          // Fast lookup in the indexed view - no chain round-trip yet.
-          const ticket = db.getTicket(ev.event_id, ticketId);
-          if (!ticket) {
-            ui.showFailure(`Ticket #${ticketId} does not belong to this event -> entry denied`);
-            continue;
+            // The code the holder shows (simulating a QR code), then the
+            // human judgement, then the oracle signature on-chain.
+            const code = await ui.askQuery("Code shown by the attendee (empty to deny entry):");
+            if (!code) continue;
+            if (!(await ui.askConfirm("Confirm check-in (entry verified)?"))) continue;
+            const tx = await markUsed(chain, contract, session.privateKey, BigInt(ticketId), code.toUpperCase());
+            ui.showSuccess(`✔ Checked in and recorded on-chain, tx ${tx}`);
+          } catch (error) {
+            if (ui.isCancel(error)) continue; // CTRL+C mid-ticket: back to "Ticket ID"
+            ui.showError(error);
           }
-          const holder = usernameOf(db, ticket.owner) ?? ticket.owner;
-          if (ticket.status !== "Valid") {
-            ui.showFailure(`Ticket #${ticketId} · holder ${holder} · ${ticket.status} ✘ -> entry denied`);
-            continue;
-          }
-          ui.showInfo(`Ticket #${ticketId} · holder ${holder} · VALID ✔`);
-
-          // The human judgement, then the oracle signature on-chain.
-          if (!(await ui.askConfirm("Confirm check-in (entry verified)?"))) continue;
-          const tx = await markUsed(chain, contract, session.privateKey, BigInt(ticketId));
-          ui.showSuccess(`✔ Checked in and recorded on-chain, tx ${tx}`);
         }
-      } else if (action === "revoke") {
-        const used = db
-          .listTicketsOfEvent(ev.event_id)
-          .filter((t) => t.status === "Used");
-        if (used.length === 0) {
-          ui.showInfo("No checked-in tickets for this event.");
-          continue;
-        }
-        const t = await ui.askTicket(
-          "Select ticket to revoke:",
-          used.map((row) => ({
-            row,
-            label: `Ticket #${row.ticket_id} · holder ${usernameOf(db, row.owner) ?? row.owner}`,
-          })),
-        );
-        if (!t) continue;
-        const sure = await ui.askConfirm(
-          `⚠ Revoke check-in for ticket #${t.ticket_id} (recorded on-chain). Confirm?`,
-        );
-        if (!sure) continue;
-        const tx = await revokeValidation(chain, contract, session.privateKey, BigInt(t.ticket_id));
-        ui.showSuccess(`✔ Revoked, ticket #${t.ticket_id} is valid again, tx ${tx}`);
       }
     } catch (error) {
       if (ui.isCancel(error)) continue; // CTRL+C inside a flow: back to menu

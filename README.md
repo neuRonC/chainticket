@@ -23,24 +23,21 @@ contract, block-timed; every step is an indexed on-chain event.
 ### Contracts
 
 - **`contracts/EventFactory.sol`** — deployed once by the platform.
-  Registry (event id → contract). Immutable pricing policy: fee =
-  **0.0004 ETH + 5%** (Eventbrite-benchmarked, 1 ETH = 2,600 AUD peg),
-  sweep delay. `createEvent` deploys a fresh EventTicket.
+  Registry (event id → contract), immutable sweep delay. `createEvent`
+  deploys a fresh EventTicket.
 - **`contracts/EventTicket.sol`** — one per event, ERC-721, block-timed
-  (`entryBlock` / `endBlock`).
-  - `releaseTickets(n)` — batch sales, deposit per ticket (fee shortfall
-    + gas allowance).
-  - Gas-inclusive prices: buyer's network fee is paid back out of the
-    service fee.
-  - Price must cover the service fee (~0.00043 ETH min); free events
-    out of scope.
+  (`entryBlock` / `endBlock`). No platform fee, no deposit: whoever sends
+  a transaction pays its own gas.
+  - `releaseTickets(n)` — batch sales, no deposit required.
   - Fairness (single `_update` checkpoint): resale-market-only transfers,
     one ticket per address, validators (incl. auto-authorised organiser)
-    can't hold tickets.
+    can't hold tickets. A resale also clears the ticket's check-in code.
+  - Check-in codes (commit-reveal): `setCheckInCode` commits a hash of a
+    QR-code stand-in; `markUsed` only accepts the matching plaintext.
   - `settle()` — permissionless after `endBlock`; the indexer keeper
-    triggers it. `closeEvent()` — early closure, opens refunds, forfeits
-    the deposit; `sweepLeftovers()` — platform collects unclaimed refunds
-    after the delay.
+    triggers it. `closeEvent()` — early closure, opens full refunds for
+    unused tickets; `sweepLeftovers()` — platform collects unclaimed
+    refunds after the delay.
 
 ### Off-chain programs (TypeScript + viem)
 
@@ -48,7 +45,7 @@ contract, block-timed; every step is an indexed on-chain event.
 |---|---|---|
 | `src/organizer.ts` | yes | create/release/authorise validators/close |
 | `src/user.ts` | yes | buy (primary + resale, price-sorted), list/unlist, refund |
-| `src/validator.ts` | yes + on-chain check | check-in by id/@username, `markUsed`, revoke |
+| `src/validator.ts` | yes + on-chain check | check-in by id/@username, code-gated `markUsed` |
 | `src/audit.ts` | no | per-event state + contract addresses + per-ticket history |
 | `src/indexer.ts` | – | sync DB from events, live log, keeper (auto-settle/sweep) |
 
@@ -98,9 +95,9 @@ npm run indexer   # terminal 3: leave running
 
 1. **Organizer** `org` — create event, release a batch, authorise `val`.
 2. **User** `user1` — buy, list for resale (try above cap). **User** `user2`
-   — buy user1's listing.
+   — buy user1's listing, generate its check-in code.
 3. **Validator** `val` — check user2 in before/after entry
-   (`anvil_mine` to the window); revoke and re-check.
+   (`anvil_mine` to the window), entering the code user2 shows.
 4. Fast-forward past `endBlock`: indexer auto-settles.
 5. Second event: `user3` buys, `org` closes early, `user3` claims refund,
    fast-forward past the sweep delay.

@@ -10,13 +10,11 @@
  * ticket's full lifecycle, or `all` for the whole event history.
  */
 
-import { formatEther } from "viem";
 import { loadConfig } from "./config";
 import { connect } from "./chain";
 import { requireFactory } from "./deployment";
 import { openDatabase } from "./db";
 import { usernameOf } from "./auth";
-import { readFeeParams } from "./ticketing";
 import * as ui from "./ui";
 
 async function main() {
@@ -24,12 +22,10 @@ async function main() {
   const chain = connect(config);
   const db = openDatabase(config.databasePath);
   const { factory, network } = requireFactory();
-  const fee = await readFeeParams(chain, factory); // read from the chain, not config
 
   ui.showStartup(
     "Audit (no login required)",
-    `Verification root EventFactory ${factory} (${network})` +
-      `\nPlatform fee ${formatEther(fee.feeFixedWei)} ETH + ${Number(fee.feeBps) / 100}%, immutable on-chain`,
+    `Verification root EventFactory ${factory} (${network})`,
   );
 
   for (;;) {
@@ -68,31 +64,38 @@ async function main() {
     );
 
     // Inside the event: per-ticket lifecycle, or the whole event history.
-    for (;;) {
-      const ticketInput = await ui.askQuery(
-        "Ticket ID / all=full event history (empty to go back):",
-      );
-      if (!ticketInput) break;
-      if (ticketInput === "all") {
-        ui.showHistory(db.getEventHistory(ev.event_id));
+    // CTRL+C anywhere in here is caught right at this level, so it returns
+    // to "Enter event ID" rather than exiting the whole program.
+    try {
+      for (;;) {
+        const ticketInput = await ui.askQuery(
+          "Ticket ID / all=full event history (empty to go back):",
+        );
+        if (!ticketInput) break;
+        if (ticketInput === "all") {
+          ui.showHistory(db.getEventHistory(ev.event_id));
+          console.log();
+          continue;
+        }
+        const ticketId = Number(ticketInput);
+        const ticket = db.getTicket(ev.event_id, ticketId);
+        if (!ticket) {
+          ui.showFailure("No such ticket for this event");
+          continue;
+        }
+        const nowBlock = Number(await chain.publicClient.getBlockNumber());
+        ui.showTicketRow(
+          ticket,
+          ev.name,
+          ui.ticketStatusLabel(ticket, db.getEvent(ev.event_id)!, nowBlock),
+          usernameOf(db, ticket.owner),
+        );
+        ui.showHistory(db.getHistory(ev.event_id, ticketId));
         console.log();
-        continue;
       }
-      const ticketId = Number(ticketInput);
-      const ticket = db.getTicket(ev.event_id, ticketId);
-      if (!ticket) {
-        ui.showFailure("No such ticket for this event");
-        continue;
-      }
-      const nowBlock = Number(await chain.publicClient.getBlockNumber());
-      ui.showTicketRow(
-        ticket,
-        ev.name,
-        ui.ticketStatusLabel(ticket, db.getEvent(ev.event_id)!, nowBlock),
-        usernameOf(db, ticket.owner),
-      );
-      ui.showHistory(db.getHistory(ev.event_id, ticketId));
-      console.log();
+    } catch (error) {
+      if (ui.isCancel(error)) continue; // CTRL+C mid-lookup: back to "Enter event ID"
+      ui.showError(error);
     }
   }
 

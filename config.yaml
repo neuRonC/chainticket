@@ -17,15 +17,11 @@ networks:
     chainId: 11155111
     blockSeconds: 12
 
-# The platform's pricing policy, set on the factory at deployment (on-chain
-# and immutable). Benchmarked against Eventbrite (1.19 AUD + 5.35%) and
-# slightly undercut, at the PoC accounting peg of 1 ETH = 2,600 AUD:
-# 0.0004 ETH ≈ 1.04 AUD fixed, plus 5%. sweepDelayBlocks is how many
-# blocks after an event's end the platform must wait before sweeping
-# unclaimed refunds (small for the demo; think days in production).
+# Set on the factory at deployment (on-chain and immutable). Whoever sends a
+# transaction pays its own gas - there is no platform fee. sweepDelayBlocks
+# is how many blocks after an event's end the platform must wait before
+# sweeping unclaimed refunds (small for the demo; think days in production).
 platform:
-  feeFixedEth: "0.0004"
-  feeBps: 500
   sweepDelayBlocks: 600
 
 # The demo identities. Usernames and passwords exist only in the local user

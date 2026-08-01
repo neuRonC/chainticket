@@ -7,18 +7,15 @@ import "./EventTicket.sol";
 /**
  * @title Registry and factory for event ticketing contracts
  * @notice Deployed once by the platform. Creating an event deploys a fresh
- * EventTicket contract - each event's tickets, funds, deposits, and
- * validator authorisations are fully isolated. The platform's pricing
- * policy (fixed fee + percentage, benchmarked against Eventbrite) and the
- * sweep delay are set here at deployment, on-chain and immutable, so the
- * rules every event runs under are transparent and cannot be changed
- * quietly. The registry maps the human-friendly event id to the event's
- * contract address - the audit trail's entry point.
+ * EventTicket contract - each event's tickets, funds, and validator
+ * authorisations are fully isolated. The sweep delay is set here at
+ * deployment, on-chain and immutable, so the rules every event runs under
+ * are transparent and cannot be changed quietly. The registry maps the
+ * human-friendly event id to the event's contract address - the audit
+ * trail's entry point.
  */
 contract EventFactory {
-    address public immutable platform; // Factory deployer: fee recipient
-    uint256 public immutable feeFixed; // Service fee: fixed part in Wei
-    uint256 public immutable feeBps; // Service fee: percentage in basis points
+    address public immutable platform; // Factory deployer: receives swept leftovers
     uint256 public immutable sweepDelay; // Blocks after an event's end until sweeping
 
     uint256 public numEvents; // Events created so far (ids start at 1)
@@ -38,15 +35,11 @@ contract EventFactory {
 
     /**
      * @dev The deployer becomes the platform
-     * @param _feeFixed Fixed part of the service fee in Wei
-     * @param _feeBps Percentage part of the service fee in basis points
      * @param _sweepDelay Blocks after an event's endBlock until the
      * platform may sweep unclaimed refunds
      */
-    constructor(uint256 _feeFixed, uint256 _feeBps, uint256 _sweepDelay) {
+    constructor(uint256 _sweepDelay) {
         platform = msg.sender;
-        feeFixed = _feeFixed;
-        feeBps = _feeBps;
         sweepDelay = _sweepDelay;
     }
 
@@ -55,8 +48,7 @@ contract EventFactory {
      *
      * @param name Event name
      * @param capacity Total ticket supply (releasing it all is optional)
-     * @param price Primary sale price in Wei (must at least cover the
-     * service fee)
+     * @param price Primary sale price in Wei
      * @param resaleCap Resale price cap in Wei
      * @param entryBlock Block at which entry opens (sales stop, check-in starts)
      * @param endBlock Block at which the event is over (settlement possible)
@@ -83,8 +75,6 @@ contract EventFactory {
             resaleCap,
             entryBlock,
             endBlock,
-            feeFixed,
-            feeBps,
             sweepDelay
         );
         eventContract = address(ticket);

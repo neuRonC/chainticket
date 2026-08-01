@@ -21,14 +21,9 @@ contract EventTicketTest is Test {
     uint256 constant PRICE = 0.05 ether;
     uint256 constant CAPACITY = 3;
     uint256 constant CAP = PRICE; // resale at most the face price
-    uint256 constant FEE_FIXED = 0.0004 ether;
-    uint256 constant FEE_BPS = 500; // 5%
     uint256 constant SWEEP_DELAY = 10;
     uint256 constant ENTRY = 100; // entry block of the test event
     uint256 constant END = 200; // end block of the test event
-
-    uint256 FEE; // service fee on the face price
-    uint256 DEPOSIT; // per-ticket release deposit
 
     /// @notice Sets up the testing environment before each test.
     function setUp() public {
@@ -44,7 +39,7 @@ contract EventTicketTest is Test {
         vm.deal(mallory, 1 ether);
 
         vm.prank(platform);
-        factory = new EventFactory(FEE_FIXED, FEE_BPS, SWEEP_DELAY);
+        factory = new EventFactory(SWEEP_DELAY);
 
         vm.roll(1);
         vm.prank(organiser);
@@ -57,16 +52,14 @@ contract EventTicketTest is Test {
             END
         );
         evt = EventTicket(eventContract);
-        FEE = evt.feeOn(PRICE);
-        DEPOSIT = evt.depositPerTicket();
     }
 
     // HELPER SETUP FUNCTIONS
 
-    /// @dev Releases `n` tickets with the correct deposit.
+    /// @dev Releases `n` tickets.
     function helper_release(uint256 n) internal {
         vm.prank(organiser);
-        evt.releaseTickets{value: n * DEPOSIT}(n);
+        evt.releaseTickets(n);
     }
 
     /// @dev Releases 3 tickets and has Alice buy ticket #1.
@@ -98,58 +91,44 @@ contract EventTicketTest is Test {
         factory.createEvent("X", 1, PRICE, CAP, 50, 200);
         vm.expectRevert("End block must be after entry");
         factory.createEvent("X", 1, PRICE, CAP, 100, 100);
-        vm.expectRevert("Price below the service fee");
-        factory.createEvent("X", 1, FEE_FIXED, CAP, 100, 200); // cannot cover its own fee
     }
 
     // BATCH RELEASE (FR1)
 
-    /// @notice The organiser releases batches with the exact deposit.
+    /// @notice The organiser releases batches; no deposit is required.
     function test_releaseTickets() public {
         helper_release(2);
         assertEq(evt.released(), 2, "Two tickets released");
-        assertEq(evt.gasFloat(), 2 * DEPOSIT, "Deposit recorded as float");
         helper_release(1); // a second batch
         assertEq(evt.released(), 3, "Batches accumulate");
     }
 
-    /// @notice Reverts beyond capacity, with a wrong deposit, after entry,
-    /// or from a non-organiser.
+    /// @notice Reverts beyond capacity, after entry, or from a non-organiser.
     function test_releaseFailures() public {
         vm.prank(organiser);
         vm.expectRevert("Exceeds capacity");
-        evt.releaseTickets{value: 4 * DEPOSIT}(4);
-
-        vm.prank(organiser);
-        vm.expectRevert("Incorrect deposit");
-        evt.releaseTickets{value: 1}(1);
+        evt.releaseTickets(4);
 
         vm.prank(mallory);
         vm.expectRevert("Only the organiser can call");
-        evt.releaseTickets{value: DEPOSIT}(1);
+        evt.releaseTickets(1);
 
         vm.roll(ENTRY);
         vm.prank(organiser);
         vm.expectRevert("Sales are over");
-        evt.releaseTickets{value: DEPOSIT}(1);
+        evt.releaseTickets(1);
     }
 
     // PRIMARY SALE
 
-    /// @notice A user buys a released ticket; the fee leaves the escrow.
+    /// @notice A user buys a released ticket; the full price stays in escrow.
     function test_buy() public {
         helper_release(1);
         vm.prank(alice);
         uint256 ticketId = evt.buy{value: PRICE}();
 
         assertEq(evt.ownerOf(ticketId), alice, "Alice owns the ticket");
-        // Zero gas price in tests: the whole fee goes to the platform.
-        assertEq(platform.balance, FEE, "Platform received the fee");
-        assertEq(
-            address(evt).balance,
-            PRICE - FEE + DEPOSIT,
-            "Escrow keeps price minus fee, plus the deposit"
-        );
+        assertEq(address(evt).balance, PRICE, "Escrow keeps the full price");
     }
 
     /// @notice Reverts without released stock, after entry, on wrong payment.
@@ -193,34 +172,27 @@ contract EventTicketTest is Test {
 
     // RESALE MARKET
 
-    /// @notice List and buy: seller receives asking price minus the fee.
+    /// @notice List and buy: the seller receives the full asking price.
     function test_resale() public {
         uint256 ticketId = helper_releaseAndBuy();
         vm.prank(alice);
         evt.listForResale(ticketId, PRICE);
 
         uint256 aliceBefore = alice.balance;
-        uint256 platformBefore = platform.balance;
         vm.prank(bob);
         evt.buyListed{value: PRICE}(ticketId);
 
-        uint256 askFee = evt.feeOn(PRICE);
         assertEq(evt.ownerOf(ticketId), bob, "Bob owns the ticket");
-        assertEq(alice.balance, aliceBefore + PRICE - askFee, "Seller got price minus fee");
-        assertEq(platform.balance, platformBefore + askFee, "Platform got the resale fee");
+        assertEq(alice.balance, aliceBefore + PRICE, "Seller got the full asking price");
     }
 
-    /// @notice Listing failures: cap, fee floor, ownership, raw transfers.
+    /// @notice Listing failures: cap, ownership, raw transfers.
     function test_listFailures() public {
         uint256 ticketId = helper_releaseAndBuy();
 
         vm.prank(alice);
         vm.expectRevert("Price exceeds the resale cap");
         evt.listForResale(ticketId, PRICE + 1);
-
-        vm.prank(alice);
-        vm.expectRevert("Price must cover the service fee");
-        evt.listForResale(ticketId, FEE_FIXED); // below its own fee
 
         vm.prank(mallory);
         vm.expectRevert("Only the ticket owner can list");
@@ -245,29 +217,94 @@ contract EventTicketTest is Test {
 
     // VALIDATION WINDOW (FR3)
 
+    /// @dev Sets a ticket's check-in code as `owner` and returns the plaintext.
+    function helper_setCode(uint256 ticketId, address owner) internal returns (string memory code) {
+        code = "secret";
+        vm.prank(owner);
+        evt.setCheckInCode(ticketId, keccak256(abi.encodePacked(code)));
+    }
+
     /// @notice Check-in works only inside [entry, end).
     function test_markUsedWindow() public {
         uint256 ticketId = helper_releaseAndBuy();
+        string memory code = helper_setCode(ticketId, alice);
         vm.prank(organiser);
         evt.authorizeValidator(validator);
 
         vm.prank(validator);
         vm.expectRevert("Entry has not opened yet");
-        evt.markUsed(ticketId);
+        evt.markUsed(ticketId, code);
 
         vm.roll(ENTRY);
         vm.prank(validator);
-        evt.markUsed(ticketId);
+        evt.markUsed(ticketId, code);
         assertEq(evt.usedCount(), 1, "Used count incremented");
-
-        vm.prank(validator);
-        evt.revokeValidation(ticketId);
-        assertEq(evt.usedCount(), 0, "Used count decremented");
 
         vm.roll(END);
         vm.prank(validator);
         vm.expectRevert("Event is over");
-        evt.markUsed(ticketId);
+        evt.markUsed(ticketId, code);
+    }
+
+    // CHECK-IN CODE (commit-reveal)
+
+    /// @notice Only the current owner can set a code, and only on a valid ticket.
+    function test_setCheckInCodeRules() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        bytes32 hash = keccak256(abi.encodePacked("secret"));
+
+        vm.prank(mallory);
+        vm.expectRevert("Only the ticket owner can set the code");
+        evt.setCheckInCode(ticketId, hash);
+
+        vm.prank(alice);
+        evt.setCheckInCode(ticketId, hash);
+        assertEq(evt.checkInCodeHash(ticketId), hash, "Hash stored");
+    }
+
+    /// @notice markUsed rejects a missing or wrong code.
+    function test_markUsedFailure_badCode() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        vm.prank(organiser);
+        evt.authorizeValidator(validator);
+        vm.roll(ENTRY);
+
+        vm.prank(validator);
+        vm.expectRevert("No check-in code set");
+        evt.markUsed(ticketId, "secret");
+
+        vm.prank(alice);
+        evt.setCheckInCode(ticketId, keccak256(abi.encodePacked("secret")));
+
+        vm.prank(validator);
+        vm.expectRevert("Wrong check-in code");
+        evt.markUsed(ticketId, "guess");
+    }
+
+    /// @notice A resale clears the previous owner's code; the new owner sets their own.
+    function test_checkInCodeClearedOnResale() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        vm.prank(alice);
+        evt.setCheckInCode(ticketId, keccak256(abi.encodePacked("secret")));
+
+        vm.prank(alice);
+        evt.listForResale(ticketId, PRICE);
+        vm.prank(bob);
+        evt.buyListed{value: PRICE}(ticketId);
+
+        assertEq(evt.checkInCodeHash(ticketId), bytes32(0), "Code cleared on transfer");
+
+        vm.prank(organiser);
+        evt.authorizeValidator(validator);
+        vm.roll(ENTRY);
+        vm.prank(validator);
+        vm.expectRevert("No check-in code set");
+        evt.markUsed(ticketId, "secret"); // Alice's old code no longer works
+
+        string memory code = helper_setCode(ticketId, bob);
+        vm.prank(validator);
+        evt.markUsed(ticketId, code);
+        assertEq(evt.usedCount(), 1, "Bob's own code checks in fine");
     }
 
     /// @notice Validators can be authorised until the end, but never a holder.
@@ -325,15 +362,16 @@ contract EventTicketTest is Test {
         uint256 t2 = evt.buy{value: PRICE}();
 
         vm.roll(ENTRY);
+        string memory code = helper_setCode(t1, alice);
         vm.prank(organiser);
-        evt.markUsed(t1); // alice attended
+        evt.markUsed(t1, code); // alice attended
 
         uint256 organiserBefore = organiser.balance;
         vm.prank(organiser);
         evt.closeEvent();
         assertEq(
             organiser.balance,
-            organiserBefore + (PRICE - FEE),
+            organiserBefore + PRICE,
             "Used ticket's revenue settled to the organiser"
         );
 
@@ -362,13 +400,13 @@ contract EventTicketTest is Test {
         vm.roll(ENTRY);
         vm.prank(organiser);
         vm.expectRevert("Event is closed");
-        evt.markUsed(ticketId);
+        evt.markUsed(ticketId, "x");
     }
 
     // SETTLEMENT (keeper pattern)
 
-    /// @notice After endBlock anyone settles; the organiser receives
-    /// revenue plus the deposit remainder; closing is then blocked.
+    /// @notice After endBlock anyone settles; the organiser receives all
+    /// revenue; closing is then blocked.
     function test_settle() public {
         helper_releaseAndBuy();
 
@@ -377,7 +415,7 @@ contract EventTicketTest is Test {
 
         vm.roll(END);
         uint256 organiserBefore = organiser.balance;
-        uint256 expected = address(evt).balance; // revenue + deposit
+        uint256 expected = address(evt).balance;
         vm.prank(mallory); // literally anyone
         evt.settle();
         assertEq(organiser.balance, organiserBefore + expected, "Organiser got everything");
@@ -417,7 +455,7 @@ contract EventTicketTest is Test {
         uint256 leftovers = address(evt).balance;
         vm.prank(platform);
         evt.sweepLeftovers();
-        assertEq(platform.balance, FEE + leftovers, "Platform swept the leftovers");
+        assertEq(platform.balance, leftovers, "Platform swept the leftovers");
     }
 
     /// @notice A normally settled event has nothing to sweep.
@@ -428,54 +466,5 @@ contract EventTicketTest is Test {
         vm.prank(platform);
         vm.expectRevert("Nothing to sweep");
         evt.sweepLeftovers();
-    }
-
-    // GAS-INCLUSIVE PRICING
-
-    /// @notice The buyer's gas comes out of the fee; the platform gets the
-    /// rest; the escrow's share is unaffected.
-    function test_buyGasSubsidy() public {
-        helper_release(1);
-        vm.txGasPrice(1 gwei);
-        uint256 aliceBefore = alice.balance;
-        vm.prank(alice);
-        evt.buy{value: PRICE}();
-
-        uint256 spent = aliceBefore - alice.balance;
-        assertLt(spent, PRICE, "Subsidy returned to the buyer");
-        assertLt(platform.balance, FEE, "Platform bears the subsidy");
-        assertEq(spent, PRICE - (FEE - platform.balance), "Split is exact");
-    }
-
-    /// @notice Refunds make the buyer whole including the claim's gas,
-    /// funded by the organiser's deposit.
-    function test_refundMakesBuyerWhole() public {
-        vm.txGasPrice(1 gwei);
-        helper_release(1);
-        uint256 aliceStart = alice.balance;
-        vm.prank(alice);
-        uint256 ticketId = evt.buy{value: PRICE}();
-        vm.prank(organiser);
-        evt.closeEvent();
-
-        vm.prank(alice);
-        evt.claimRefund(ticketId);
-        assertGe(alice.balance, aliceStart, "Buyer made whole incl. gas");
-    }
-
-    /// @notice Validators are reimbursed from the deposit for check-ins.
-    function test_markUsedReimbursed() public {
-        uint256 ticketId = helper_releaseAndBuy();
-        vm.prank(organiser);
-        evt.authorizeValidator(validator);
-        vm.roll(ENTRY);
-
-        vm.txGasPrice(1 gwei);
-        vm.deal(validator, 1 ether);
-        uint256 floatBefore = evt.gasFloat();
-        vm.prank(validator);
-        evt.markUsed(ticketId);
-        assertGt(validator.balance, 1 ether, "Validator reimbursed");
-        assertLt(evt.gasFloat(), floatBefore, "Reimbursement drawn from the float");
     }
 }

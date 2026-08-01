@@ -1,12 +1,12 @@
 /**
- * Reads config.yaml: the active network profile, the platform's pricing
- * policy, the demo accounts the seed script provisions into the user
- * store, and the shared database path.
+ * Reads config.yaml: the active network profile, the sweep delay, the demo
+ * accounts the seed script provisions into the user store, and the shared
+ * database path.
  */
 
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
-import { parseEther, type Hex } from "viem";
+import type { Hex } from "viem";
 
 export interface DemoAccount {
   privateKey: Hex;
@@ -18,8 +18,6 @@ export interface Config {
   providerUrl: string;
   chainId: number;
   blockSeconds: number;
-  feeFixedWei: bigint;
-  feeBps: number;
   sweepDelayBlocks: number;
   accounts: Record<string, DemoAccount>;
   databasePath: string;
@@ -32,7 +30,7 @@ export function loadConfig(): Config {
       string,
       { url?: string; urlEnv?: string; chainId: number; blockSeconds: number }
     >;
-    platform: { feeFixedEth: string; feeBps: number; sweepDelayBlocks: number };
+    platform: { sweepDelayBlocks: number };
     accounts: Record<string, DemoAccount>;
     database: { path: string };
   };
@@ -54,8 +52,6 @@ export function loadConfig(): Config {
     providerUrl,
     chainId: profile.chainId,
     blockSeconds: profile.blockSeconds,
-    feeFixedWei: parseEther(data.platform.feeFixedEth),
-    feeBps: data.platform.feeBps,
     sweepDelayBlocks: data.platform.sweepDelayBlocks,
     accounts: data.accounts,
     databasePath: data.database.path,

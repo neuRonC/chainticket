@@ -8,7 +8,9 @@
  * carries its block number and transaction hash, and the audit interface
  * shows each event's contract address, so anything here can be re-checked
  * against the chain - the database is a convenience cache, the chain is the
- * source of truth.
+ * source of truth. The one exception is a ticket's check-in code: the user
+ * program writes its plaintext here directly (only the hash ever reaches
+ * the chain), so it cannot be recovered from contract events.
  *
  * The database file lives under tmp/ as a generated artefact.
  */
@@ -47,6 +49,7 @@ export interface TicketRow {
   owner: string;
   status: "Valid" | "Used" | "Refunded";
   listed_price_wei: string; // "0" = not listed
+  checkin_code: string; // "" = none set; plaintext, kept off-chain (only its hash is on-chain)
 }
 
 export interface ValidatorRow {
@@ -99,6 +102,7 @@ export function openDatabase(path: string) {
       owner            TEXT NOT NULL,
       status           TEXT NOT NULL DEFAULT 'Valid',
       listed_price_wei TEXT NOT NULL DEFAULT '0',
+      checkin_code     TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (event_id, ticket_id)
     );
     CREATE TABLE IF NOT EXISTS validators (
@@ -186,7 +190,7 @@ export function openDatabase(path: string) {
 
     setTicketOwner(eventId: number, ticketId: number, owner: string) {
       db.prepare(
-        `UPDATE tickets SET owner = ?, listed_price_wei = '0'
+        `UPDATE tickets SET owner = ?, listed_price_wei = '0', checkin_code = ''
          WHERE event_id = ? AND ticket_id = ?`,
       ).run(owner, eventId, ticketId);
     },
@@ -203,6 +207,13 @@ export function openDatabase(path: string) {
       db.prepare(
         `UPDATE tickets SET listed_price_wei = ? WHERE event_id = ? AND ticket_id = ?`,
       ).run(priceWei, eventId, ticketId);
+    },
+
+    // Written directly by the user program - never derived from the chain.
+    setCheckInCode(eventId: number, ticketId: number, code: string) {
+      db.prepare(
+        `UPDATE tickets SET checkin_code = ? WHERE event_id = ? AND ticket_id = ?`,
+      ).run(code, eventId, ticketId);
     },
 
     setValidator(eventId: number, address: string, active: boolean) {

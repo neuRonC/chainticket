@@ -8,14 +8,12 @@
  * interface of contracts someone else deployed.
  */
 
-import { parseAbi, parseEventLogs, type Address, type Hex } from "viem";
+import { keccak256, parseAbi, parseEventLogs, toBytes, type Address, type Hex } from "viem";
 import type { Artifact, Chain } from "./chain";
 
 // Fragment ABIs - the public interface of the two contracts.
 
 const factoryAbi = parseAbi([
-  "function feeFixed() view returns (uint256)",
-  "function feeBps() view returns (uint256)",
   "function createEvent(string name, uint256 capacity, uint256 price, uint256 resaleCap, uint256 entryBlock, uint256 endBlock) returns (uint256 eventId, address eventContract)",
   "event EventCreated(uint256 indexed eventId, address indexed eventContract, address indexed organiser, string name, uint256 capacity, uint256 price, uint256 resaleCap, uint256 entryBlock, uint256 endBlock)",
 ]);
@@ -23,12 +21,12 @@ const factoryAbi = parseAbi([
 const eventAbi = parseAbi([
   // reads (current state is read from the indexer's database; the chain is
   // consulted only where a client must not trust the cache)
-  "function depositPerTicket() view returns (uint256)",
   "function isValidator(address) view returns (bool)",
   "function balanceOf(address) view returns (uint256)",
   // organiser
-  "function releaseTickets(uint256 count) payable",
+  "function releaseTickets(uint256 count)",
   "function authorizeValidator(address validator)",
+  "function revokeValidator(address validator)",
   "function closeEvent()",
   // anyone (keeper)
   "function settle()",
@@ -38,21 +36,21 @@ const eventAbi = parseAbi([
   "function unlist(uint256 ticketId)",
   "function buyListed(uint256 ticketId) payable",
   "function claimRefund(uint256 ticketId)",
+  "function setCheckInCode(uint256 ticketId, bytes32 codeHash)",
   // validators
-  "function markUsed(uint256 ticketId)",
-  "function revokeValidation(uint256 ticketId)",
+  "function markUsed(uint256 ticketId, string code)",
   // platform
   "function sweepLeftovers()",
   // events
-  "event TicketsReleased(uint256 count, uint256 totalReleased, uint256 deposit)",
+  "event TicketsReleased(uint256 count, uint256 totalReleased)",
   "event ValidatorAuthorized(address indexed validator)",
   "event ValidatorRevoked(address indexed validator)",
-  "event TicketPurchased(uint256 indexed ticketId, address indexed buyer, uint256 price, uint256 fee)",
+  "event TicketPurchased(uint256 indexed ticketId, address indexed buyer, uint256 price)",
   "event TicketListed(uint256 indexed ticketId, uint256 price)",
   "event TicketUnlisted(uint256 indexed ticketId)",
-  "event ListingSold(uint256 indexed ticketId, address indexed seller, address indexed buyer, uint256 price, uint256 fee)",
+  "event ListingSold(uint256 indexed ticketId, address indexed seller, address indexed buyer, uint256 price)",
+  "event CheckInCodeSet(uint256 indexed ticketId)",
   "event TicketUsed(uint256 indexed ticketId, address indexed validator)",
-  "event ValidationRevoked(uint256 indexed ticketId, address indexed validator)",
   "event EventClosed(uint256 payout)",
   "event EventSettled(uint256 payout)",
   "event RefundClaimed(uint256 indexed ticketId, address indexed holder, uint256 amount)",
@@ -61,11 +59,6 @@ const eventAbi = parseAbi([
   "error ERC721NonexistentToken(uint256 tokenId)",
 ]);
 
-// The reimbursement/subsidy branch (an extra value transfer) only runs when
-// the gas price is non-zero, which gas estimation can miss - calls that end
-// in one pad the estimated limit to cover it.
-const SUBSIDY_GAS_PAD = 40000n;
-
 // Factory operations.
 
 // Deploy the factory (seed script only - needs the compiled artifact).
@@ -73,14 +66,12 @@ export async function deployFactory(
   chain: Chain,
   artifact: Artifact,
   key: Hex,
-  feeFixedWei: bigint,
-  feeBps: bigint,
   sweepDelayBlocks: bigint,
 ): Promise<Address> {
   const hash = await chain.walletFor(key).deployContract({
     abi: artifact.abi,
     bytecode: artifact.bytecode,
-    args: [feeFixedWei, feeBps, sweepDelayBlocks],
+    args: [sweepDelayBlocks],
   });
   const receipt = await chain.publicClient.waitForTransactionReceipt({ hash });
   return receipt.contractAddress!;
@@ -115,27 +106,6 @@ export async function createEvent(
 
 // Reads.
 
-// The platform's pricing policy, from the chain - the single source of
-// truth (config.yaml only feeds the deployment).
-export async function readFeeParams(
-  chain: Chain,
-  factory: Address,
-): Promise<{ feeFixedWei: bigint; feeBps: bigint }> {
-  const [feeFixedWei, feeBps] = await Promise.all([
-    chain.publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "feeFixed" }),
-    chain.publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "feeBps" }),
-  ]);
-  return { feeFixedWei, feeBps };
-}
-
-export function readDepositPerTicket(chain: Chain, address: Address): Promise<bigint> {
-  return chain.publicClient.readContract({
-    address,
-    abi: eventAbi,
-    functionName: "depositPerTicket",
-  });
-}
-
 export function isValidatorOn(
   chain: Chain,
   address: Address,
@@ -165,11 +135,11 @@ export async function holdsTicket(
 }
 
 // Writes. Every write takes the signer's private key from the login
-// session - the contract enforces who may do what.
+// session - the contract enforces who may do what. Whoever sends the
+// transaction pays its own gas; there is no reimbursement.
 
-// One transaction helper for every contract write: estimate, pad the gas
-// limit (the reimbursement branch only runs at a non-zero gas price, which
-// estimation misses - see SUBSIDY_GAS_PAD), send, await the receipt.
+// One transaction helper for every contract write: estimate, send, await
+// the receipt.
 async function write(
   chain: Chain,
   address: Address,
@@ -178,10 +148,11 @@ async function write(
     | "buy"
     | "buyListed"
     | "claimRefund"
+    | "setCheckInCode"
     | "markUsed"
-    | "revokeValidation"
     | "settle"
     | "authorizeValidator"
+    | "revokeValidator"
     | "releaseTickets"
     | "closeEvent"
     | "listForResale"
@@ -205,7 +176,7 @@ async function write(
     functionName,
     args: args as never,
     value,
-    gas: gas + SUBSIDY_GAS_PAD,
+    gas,
   } as never);
   await chain.publicClient.waitForTransactionReceipt({ hash });
   return hash;
@@ -213,6 +184,8 @@ async function write(
 
 export const authorizeValidator = (c: Chain, a: Address, k: Hex, v: Address) =>
   write(c, a, k, "authorizeValidator", [v]);
+export const revokeValidator = (c: Chain, a: Address, k: Hex, v: Address) =>
+  write(c, a, k, "revokeValidator", [v]);
 export const closeEvent = (c: Chain, a: Address, k: Hex) =>
   write(c, a, k, "closeEvent");
 export const settle = (c: Chain, a: Address, k: Hex) =>
@@ -227,22 +200,19 @@ export const unlist = (c: Chain, a: Address, k: Hex, id: bigint) =>
 export const claimRefund = (c: Chain, a: Address, k: Hex, id: bigint) =>
   write(c, a, k, "claimRefund", [id]);
 
-export const markUsed = (c: Chain, a: Address, k: Hex, id: bigint) =>
-  write(c, a, k, "markUsed", [id]);
-export const revokeValidation = (c: Chain, a: Address, k: Hex, id: bigint) =>
-  write(c, a, k, "revokeValidation", [id]);
+// keccak256 of a check-in code's plaintext, matching the contract's
+// keccak256(abi.encodePacked(code)) - the commit half of check-in.
+// Case-normalised so a validator retyping the code isn't tripped up by case.
+export const hashCheckInCode = (code: string) => keccak256(toBytes(code.toUpperCase()));
 
-// Release a batch of tickets, attaching the required deposit.
-export async function releaseTickets(
-  chain: Chain,
-  address: Address,
-  key: Hex,
-  count: bigint,
-): Promise<{ hash: Hex; deposit: bigint }> {
-  const deposit = (await readDepositPerTicket(chain, address)) * count;
-  const hash = await write(chain, address, key, "releaseTickets", [count], deposit);
-  return { hash, deposit };
-}
+export const setCheckInCode = (c: Chain, a: Address, k: Hex, id: bigint, codeHash: Hex) =>
+  write(c, a, k, "setCheckInCode", [id, codeHash]);
+export const markUsed = (c: Chain, a: Address, k: Hex, id: bigint, code: string) =>
+  write(c, a, k, "markUsed", [id, code]);
+
+// Release a batch of tickets for sale.
+export const releaseTickets = (c: Chain, a: Address, k: Hex, count: bigint) =>
+  write(c, a, k, "releaseTickets", [count]);
 
 // Buy in the primary sale; returns the new ticket's id.
 export async function buy(

@@ -9,8 +9,8 @@
  * 2. Print every chain event live - the demo's window into the chain.
  * 3. Act as the keeper: contracts cannot auto-execute, so when a block
  *    arrives that passes an event's endBlock, the indexer sends the
- *    permissionless settle() transaction with the platform's key (the
- *    contract reimburses the caller's gas from the organiser's deposit).
+ *    permissionless settle() transaction with the platform's key, paying
+ *    its own gas like any other caller.
  *
  * Run it in its own terminal and leave it running; stop with CTRL+C.
  */
@@ -157,7 +157,7 @@ function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
       fresh = db.appendHistory({
         ...base,
         ticket_id: null,
-        detail: `Released ${a.count} tickets (total ${a.totalReleased}) · deposit ${formatEther(a.deposit as bigint)} ETH`,
+        detail: `Released ${a.count} tickets (total ${a.totalReleased})`,
       });
       break;
     }
@@ -173,7 +173,7 @@ function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
       fresh = db.appendHistory({
         ...base,
         ticket_id: ticketId,
-        detail: `Purchased · buyer ${a.buyer} · ${formatEther(a.price as bigint)} ETH (fee ${formatEther(a.fee as bigint)})`,
+        detail: `Purchased · buyer ${a.buyer} · ${formatEther(a.price as bigint)} ETH`,
       });
       break;
     }
@@ -196,7 +196,7 @@ function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
       fresh = db.appendHistory({
         ...base,
         ticket_id: ticketId,
-        detail: `Resale sold · ${a.seller} → ${a.buyer} · ${formatEther(a.price as bigint)} ETH (fee ${formatEther(a.fee as bigint)})`,
+        detail: `Resale sold · ${a.seller} → ${a.buyer} · ${formatEther(a.price as bigint)} ETH`,
       });
       break;
     }
@@ -209,12 +209,11 @@ function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
       });
       break;
     }
-    case "ValidationRevoked": {
-      db.setTicketStatus(eventId, ticketId!, "Valid");
+    case "CheckInCodeSet": {
       fresh = db.appendHistory({
         ...base,
         ticket_id: ticketId,
-        detail: `Check-in revoked · validator ${a.validator}`,
+        detail: "Check-in code set",
       });
       break;
     }
