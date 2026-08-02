@@ -179,6 +179,13 @@ async function main() {
             }),
           );
           if (!t) break;
+          const status = ui.ticketStatusLabel(t, eventOf(t), currentBlock);
+          if (status === "Used" || status === "Expired") {
+            ui.showFailure(
+              `This ticket has ${status === "Used" ? "already been used" : "expired"} - use the Audit interface to look it up.`,
+            );
+            continue;
+          }
 
           // Level B: the action menu for this one ticket. A CTRL+C at its
           // own prompt is caught here, landing back on "Select a ticket to

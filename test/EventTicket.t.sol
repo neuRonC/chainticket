@@ -321,14 +321,18 @@ contract EventTicketTest is Test {
         vm.expectRevert("Ticket holders cannot be validators");
         evt.authorizeValidator(alice);
 
+        vm.prank(organiser);
+        vm.expectRevert("The organiser stays a validator");
+        evt.revokeValidator(organiser);
+
         vm.roll(END);
         vm.prank(organiser);
         vm.expectRevert("Event is over");
         evt.authorizeValidator(mallory);
 
         vm.prank(organiser);
-        vm.expectRevert("The organiser stays a validator");
-        evt.revokeValidator(organiser);
+        vm.expectRevert("Event is over");
+        evt.revokeValidator(validator);
     }
 
     // EARLY CLOSURE AND REFUNDS

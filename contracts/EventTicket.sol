@@ -163,7 +163,8 @@ contract EventTicket is ERC721 {
      *
      * @param validator Account to revoke
      */
-    function revokeValidator(address validator) external onlyOrganiser {
+    function revokeValidator(address validator) external onlyOrganiser notClosed {
+        require(block.number < endBlock, "Event is over");
         require(validator != organiser, "The organiser stays a validator");
         isValidator[validator] = false;
         emit ValidatorRevoked(validator);

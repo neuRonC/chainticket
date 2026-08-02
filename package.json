@@ -9,6 +9,7 @@
   "scripts": {
     "test": "forge test",
     "build": "forge build",
+    "start": "tsx src/launcher.ts",
     "organizer": "tsx src/organizer.ts",
     "validator": "tsx src/validator.ts",
     "indexer": "tsx src/indexer.ts",
@@ -16,7 +17,8 @@
     "node": "anvil --block-time 1",
     "seed": "tsx src/seed.ts",
     "deploy": "tsx src/deploy.ts",
-    "user": "tsx src/user.ts"
+    "user": "tsx src/user.ts",
+    "timetravel": "tsx src/timetravel.ts"
   },
   "keywords": [],
   "author": "",

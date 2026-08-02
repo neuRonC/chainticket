@@ -7,7 +7,9 @@
  * carries its block number and transaction hash, so any line can be
  * independently re-checked against the chain with a node or explorer of
  * the auditor's choosing. Inside an event, enter a ticket id for that
- * ticket's full lifecycle, or `all` for the whole event history.
+ * ticket's full lifecycle, or `all` for the whole event history. CTRL+C
+ * backs out one level at a time (ticket lookup -> event -> exit), same as
+ * every other role program.
  */
 
 import { loadConfig } from "./config";
@@ -23,14 +25,10 @@ async function main() {
   const db = openDatabase(config.databasePath);
   const { factory, network } = requireFactory();
 
-  ui.showStartup(
-    "Audit (no login required)",
-    `Verification root EventFactory ${factory} (${network})`,
-  );
+  ui.showInfo(`Verification root EventFactory ${factory} (${network})\n`);
 
   for (;;) {
-    const eventInput = await ui.askQuery("Enter event ID (empty to exit):");
-    if (!eventInput) break;
+    const eventInput = await ui.askText("Enter event ID:");
     const ev = db.getEvent(Number(eventInput));
     if (!ev) {
       ui.showFailure("No such event");
@@ -68,10 +66,7 @@ async function main() {
     // to "Enter event ID" rather than exiting the whole program.
     try {
       for (;;) {
-        const ticketInput = await ui.askQuery(
-          "Ticket ID / all=full event history (empty to go back):",
-        );
-        if (!ticketInput) break;
+        const ticketInput = await ui.askText("Ticket ID:");
         if (ticketInput === "all") {
           ui.showHistory(db.getEventHistory(ev.event_id));
           console.log();

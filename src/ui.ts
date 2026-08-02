@@ -188,7 +188,7 @@ export function showTicketRow(
 // Print a ticket's indexed history, one line per lifecycle step.
 export function showHistory(rows: HistoryRow[]) {
   if (rows.length === 0) {
-    console.log("No history recorded.");
+    showFailure("No history recorded.");
     return;
   }
   for (const row of rows) {

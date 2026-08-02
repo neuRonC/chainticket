@@ -81,13 +81,17 @@ async function main() {
 
     try {
       if (action === "checkin") {
-        // The check-in desk loop: empty input, or CTRL+C mid-ticket, both
-        // return to the "Ticket ID" prompt rather than the outer menu.
+        if (currentBlock < ev.entry_block) {
+          ui.showFailure("Entry has not opened yet for this event.");
+          continue;
+        }
+        // The check-in desk loop: CTRL+C at "Ticket ID" is caught by the
+        // outer catch, back to the Action: menu. CTRL+C anywhere later in
+        // one ticket's flow is caught right below, back to "Ticket ID".
         for (;;) {
-          try {
-            const query = await ui.askQuery("Ticket ID or @username (empty to go back):");
-            if (!query) break;
+          const query = await ui.askText("Ticket ID or @username:");
 
+          try {
             // Resolve @username to that user's tickets for this event.
             let ticketId: number | undefined;
             if (query.startsWith("@")) {
@@ -133,11 +137,9 @@ async function main() {
             }
             ui.showSuccess(`Ticket #${ticketId} · holder ${holder} · VALID ✔`);
 
-            // The code the holder shows (simulating a QR code), then the
-            // human judgement, then the oracle signature on-chain.
-            const code = await ui.askQuery("Code shown by the attendee (empty to deny entry):");
-            if (!code) continue;
-            if (!(await ui.askConfirm("Confirm check-in (entry verified)?"))) continue;
+            // The code the holder shows (simulating a QR code) is itself
+            // the verification - the contract only accepts a match.
+            const code = await ui.askText("Code shown by the attendee:");
             const tx = await markUsed(chain, contract, session.privateKey, BigInt(ticketId), code.toUpperCase());
             ui.showSuccess(`✔ Checked in and recorded on-chain, tx ${tx}`);
           } catch (error) {

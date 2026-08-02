@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import {
   createPublicClient,
+  createTestClient,
   createWalletClient,
   defineChain,
   webSocket,
@@ -41,6 +42,18 @@ export function connect(config: Config) {
     transport,
   });
 
+  // Anvil-only test actions (e.g. mine()) - used by scripts like
+  // timetravel.ts. Calling these against Sepolia would simply fail. Its
+  // own transport with a much longer timeout: mining a large batch of
+  // blocks is slow (anvil takes real wall-clock time per block even with
+  // interval 0), and the default request timeout is tuned for ordinary
+  // reads/writes, not that.
+  const testClient = createTestClient({
+    chain: viemChain,
+    mode: "anvil",
+    transport: webSocket(config.providerUrl, { timeout: 300_000 }),
+  });
+
   // A wallet client that signs and sends transactions with the given key.
   // Keys come from the local user store after login - never from a name.
   function walletFor(privateKey: Hex) {
@@ -61,7 +74,7 @@ export function connect(config: Config) {
     return publicClient.getBalance({ address });
   }
 
-  return { publicClient, walletFor, addressOf, getBalance };
+  return { publicClient, testClient, walletFor, addressOf, getBalance };
 }
 
 export type Chain = ReturnType<typeof connect>;

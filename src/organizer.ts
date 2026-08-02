@@ -57,7 +57,7 @@ async function main() {
       message,
       events.map((row) => ({
         row,
-        label: `#${row.event_id} ${row.name} · ${ui.eventPhase(row, block, config.blockSeconds)} · released ${row.released}/${row.capacity} · sold ${row.sold}`,
+        label: `#${row.event_id} ${row.name} · ${ui.eventPhase(row, block, config.blockSeconds)} · released ${row.released}/${row.capacity} · sold ${row.sold} · price ${ui.eth(row.price_wei)}`,
       })),
     );
   }
@@ -114,9 +114,7 @@ async function main() {
             `Event #${eventId} created on-chain (${contract}), but the indexer hasn't indexed it yet - make sure "npm run indexer" is running against this deployment.`,
           );
         } else {
-          ui.showSuccess(
-            `✔ Event #${eventId} "${name}" created (entry block ${entryBlock} · end block ${endBlock}), use "Manage event" to release tickets`,
-          );
+          ui.showSuccess(`✔ Event #${eventId} "${name}" created`);
         }
       } else if (action === "manage") {
         // Level A: repeatedly pick an event to manage. Only backing out
@@ -130,6 +128,10 @@ async function main() {
           const pickBlock = Number(await chain.publicClient.getBlockNumber());
           const ev = await pick("Select event to manage:", myEvents, pickBlock);
           if (!ev) break;
+          if (ev.closed || pickBlock >= ev.end_block) {
+            ui.showFailure("This event has ended - use the Audit interface to look it up.");
+            continue;
+          }
 
           // Level B: the action menu for this one event. A CTRL+C at its
           // own prompt is caught here, landing back on "Select event to
@@ -138,9 +140,6 @@ async function main() {
             for (;;) {
               const freshEv = db.getEvent(ev.event_id)!;
               const currentBlock = Number(await chain.publicClient.getBlockNumber());
-              ui.showInfo(`[Event #${freshEv.event_id} ${freshEv.name}]`);
-              ui.showEventRow(freshEv, currentBlock, config.blockSeconds);
-              console.log();
 
               const sub = await ui.askAction("Manage event:", [
                 { name: "Release tickets", value: "release" },
