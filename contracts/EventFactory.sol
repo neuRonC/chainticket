@@ -6,13 +6,13 @@ import "./EventTicket.sol";
 
 /**
  * @title Registry and factory for event ticketing contracts
- * @notice Deployed once by the platform. Creating an event deploys a fresh
- * EventTicket contract - each event's tickets, funds, and validator
- * authorisations are fully isolated. The sweep delay is set here at
- * deployment, on-chain and immutable, so the rules every event runs under
- * are transparent and cannot be changed quietly. The registry maps the
- * human-friendly event id to the event's contract address - the audit
- * trail's entry point.
+ * @notice Deployed once by the platform. 
+ * Creating an event deploys a fresh EventTicket contract; 
+ * Each event's tickets, funds, and validator authorisations are fully isolated. 
+ * The sweep delay is set here at deployment, on-chain and immutable, 
+ * so the rules every event runs under are transparent and cannot be changed quietly.
+ * The registry maps the human-friendly event id to the event's contract address ---
+ * the audit trail's entry point.
  */
 contract EventFactory {
     address public immutable platform; // Factory deployer: receives swept leftovers
@@ -47,9 +47,9 @@ contract EventFactory {
      * @notice Create a new event by deploying its own EventTicket contract
      *
      * @param name Event name
-     * @param capacity Total ticket supply (releasing it all is optional)
-     * @param price Primary sale price in Wei
-     * @param resaleCap Resale price cap in Wei
+     * @param capacity Total ticket supply
+     * @param price Primary sale price
+     * @param resaleCap Resale price cap
      * @param entryBlock Block at which entry opens (sales stop, check-in starts)
      * @param endBlock Block at which the event is over (settlement possible)
      * @return eventId Id of the new event in this registry

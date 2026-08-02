@@ -1,18 +1,11 @@
 /**
- * The indexer / event listener / keeper - the platform's off-chain
- * computational component.
+ * The indexer / event listener / keeper - the platform's off-chain computational component.
  *
  * Three jobs in one always-running process:
- * 1. Watch the EventFactory and every event contract over WebSocket and
- *    keep the shared database in sync (with start-up backfill; contract
- *    events are the single source of truth).
+ * 1. Watch the EventFactory and every event contract over WebSocket and keep the shared database in sync.
  * 2. Print every chain event live - the demo's window into the chain.
- * 3. Act as the keeper: contracts cannot auto-execute, so when a block
- *    arrives that passes an event's endBlock, the indexer sends the
- *    permissionless settle() transaction with the platform's key, paying
- *    its own gas like any other caller.
- *
- * Run it in its own terminal and leave it running; stop with CTRL+C.
+ * 3. Act as the keeper: contracts cannot auto-execute, so when a block arrives that passes an event's endBlock, the indexer sends the
+ *    permissionless settle() transaction with the platform's key, paying its own gas like any other caller.
  */
 
 import { formatEther, type Address, type Hex } from "viem";
@@ -45,9 +38,6 @@ async function main() {
   // The keeper signs settle() as the platform.
   const platformKey = db.getUser("platform")?.private_key as Hex | undefined;
 
-  /* Live first, backfill second: the subscriptions start before the replay,
-     so no event can fall between them - the database's unique history
-     index makes any overlap idempotent. */
   onFactoryEvent(chain, factory, (log) => {
     applyFactoryEvent(db, log);
     watchTicketContracts(chain, db);
@@ -57,9 +47,6 @@ async function main() {
   await watchTicketContracts(chain, db);
   ui.showInfo("Backfill complete. Waiting for new events (CTRL+C to exit)...\n");
 
-  /* The keeper loop: on every new block, settle any event whose endBlock
-     has passed and is not yet closed; and sweep the leftovers of
-     early-closed events once the sweep delay has passed too. */
   chain.publicClient.watchBlockNumber({
     onBlockNumber: async (blockNumber) => {
       if (!platformKey) return;
@@ -89,7 +76,7 @@ async function main() {
   });
 }
 
-// Subscribe to (and then backfill) any registry contract not watched yet.
+// Subscribe to any registry contract not watched yet.
 async function watchTicketContracts(chain: Chain, db: Db) {
   for (const ev of db.listEvents()) {
     if (watched.has(ev.contract)) continue;

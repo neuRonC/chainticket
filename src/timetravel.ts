@@ -1,12 +1,6 @@
 #!/usr/bin/env -S npx tsx
 /**
- * Fast-forwards the local anvil chain for a demo: mines enough empty
- * blocks to advance by roughly the given number of minutes, converted
- * using the network's block interval (config.yaml's blockSeconds). Wraps
- * `cast rpc anvil_mine <hex blocks>` so the demo can think in minutes.
- *
- * Run directly from the project root: `./src/timetravel.ts <minutes>`
- * (or `npm run timetravel -- <minutes>`).
+ * Fast-forwards the local anvil chain for a demo.
  */
 
 import { loadConfig } from "./config";

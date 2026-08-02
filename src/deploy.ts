@@ -1,13 +1,5 @@
 /**
- * Deploys a fresh EventFactory and provisions the platform account, which
- * the indexer needs in the user store to sign the keeper's settle() and
- * sweepLeftovers() transactions. Used standalone (`npm run deploy`, e.g.
- * for Sepolia) and by the seed script, so both share one deployment path.
- *
- * The deployer key comes from config.yaml on anvil (the `platform` demo
- * account) or from the SEPOLIA_PRIVATE_KEY environment variable elsewhere;
- * whoever that key belongs to becomes the platform (entitled to sweep, and
- * the keeper's signer).
+ * Deploys a fresh EventFactory and provisions the platform account.
  */
 
 import type { Address, Hex } from "viem";

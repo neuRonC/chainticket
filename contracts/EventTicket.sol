@@ -6,15 +6,15 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 /**
  * @title One event's ticketing contract
- * @notice Deployed by the EventFactory, one instance per event. All timing
- * is block-number based: entryBlock is when the gates open (check-in
- * starts, sales stop) and endBlock is when the event is over. Tickets are
- * released for sale in batches. Whoever sends a transaction pays its own
- * gas - there is no platform fee and no reimbursement. After endBlock
- * anyone may trigger settlement - contracts cannot auto-execute, so the
- * platform's indexer acts as the keeper. Early closure by the organiser
- * opens full refunds for unused tickets; leftovers are sweepable by the
- * platform after a delay.
+ * @notice Deployed by the EventFactory, one instance per event. 
+ * All timing is block-number based: 
+ * entryBlock is when the gates open (check-in starts, sales stop),
+ * endBlock is when the event is over. 
+ * Tickets are released for sale in batches. 
+ * Whoever sends a transaction pays its own gas.
+ * After endBlock anyone may trigger settlement - contracts cannot auto-execute, so the platform's indexer acts as the keeper.
+ * Early closure by the organiser opens full refunds for unused tickets; 
+ * leftovers are sweepable by the platform after a delay.
  */
 contract EventTicket is ERC721 {
     enum TicketStatus {
@@ -96,8 +96,8 @@ contract EventTicket is ERC721 {
     }
 
     /**
-     * @dev Called by the EventFactory. The organiser is automatically an
-     * authorised validator (and can therefore never hold a ticket)
+     * @dev Called by the EventFactory. 
+     * The organiser is automatically an authorised validator (and can therefore never hold a ticket)
      */
     constructor(
         uint256 _eventId,
@@ -132,8 +132,8 @@ contract EventTicket is ERC721 {
 
     /**
      * @notice Release `count` more tickets for sale (batch sales, FR1).
-     * Releasing is never an obligation to fill the capacity - the chain
-     * only guarantees capacity and released numbers are public
+     * Releasing is never an obligation to fill the capacity ---
+     * the chain only guarantees capacity and released numbers are public
      *
      * @param count Number of tickets to release (positive)
      */
@@ -146,8 +146,8 @@ contract EventTicket is ERC721 {
     }
 
     /**
-     * @notice Authorise a validator; allowed until the event ends so the
-     * organiser can react to staffing problems mid-event
+     * @notice Authorise a validator; 
+     * allowed until the event ends so the organiser can react to staffing problems mid-event
      *
      * @param validator Account to authorise
      */
@@ -173,8 +173,8 @@ contract EventTicket is ERC721 {
     /**
      * @notice Close the event early (before endBlock), opening refunds.
      * Before entry: buyers of every ticket can claim a full refund.
-     * During the event: revenue of already-used tickets settles to the
-     * organiser now; unused tickets can claim a full refund
+     * During the event: revenue of already-used tickets settles to the organiser now; 
+     * Unused tickets can claim a full refund.
      */
     function closeEvent() external onlyOrganiser notClosed {
         require(block.number < endBlock, "Event is over - settlement is automatic");
@@ -194,10 +194,8 @@ contract EventTicket is ERC721 {
     // Anyone: settlement after the event ends (keeper pattern)
 
     /**
-     * @notice Settle a normally-ended event: the organiser receives all
-     * revenue; unused tickets are expired. Callable by anyone - contracts
-     * cannot auto-execute, so the platform's indexer triggers this the
-     * moment endBlock passes
+     * @notice Settle a normally-ended event: the organiser receives all revenue; unused tickets are expired.
+     * Callable by anyone - contracts cannot auto-execute, so the platform's indexer triggers this the moment endBlock passes.
      */
     function settle() external notClosed {
         require(block.number >= endBlock, "Event is not over yet");
@@ -258,8 +256,7 @@ contract EventTicket is ERC721 {
     }
 
     /**
-     * @notice Buy a listed ticket, until entry opens. The seller receives
-     * the asking price in full
+     * @notice Buy a listed ticket, until entry opens. The seller receives the asking price in full.
      *
      * @param ticketId Listed ticket to buy
      */
@@ -298,11 +295,9 @@ contract EventTicket is ERC721 {
     }
 
     /**
-     * @notice Set (or replace) the ticket's check-in code, as a hash - the
-     * commit half of check-in's commit-reveal scheme. Simulates handing the
-     * holder a QR code: only whoever holds this hash's preimage can pass
-     * `markUsed`. Cleared on every resale (see `_update`), so a new owner
-     * must set their own before they can check in
+     * @notice Set (or replace) the ticket's check-in code, as a hash - the commit half of check-in's commit-reveal scheme.
+     * Simulates handing the holder a QR code: only whoever holds this hash's preimage can pass `markUsed`.
+     * Cleared on every resale (see `_update`), so a new owner must set their own before they can check in.
      *
      * @param ticketId Ticket to set the code for
      * @param codeHash keccak256 of the plaintext code
@@ -317,10 +312,10 @@ contract EventTicket is ERC721 {
     // Validators: gate check-in during the event window (FR3)
 
     /**
-     * @notice Mark a ticket as used at the gate. Only during the event
-     * window (entry to end); the holder's code is the reveal half of the
-     * commit-reveal scheme set up by `setCheckInCode`. A listed ticket is
-     * automatically unlisted
+     * @notice Mark a ticket as used at the gate. 
+     * Only during the event window (entry to end); 
+     * The holder's code is the reveal half of the commit-reveal scheme set up by `setCheckInCode`.
+     * A listed ticket is automatically unlisted.
      *
      * @param ticketId Ticket to mark as used
      * @param code Plaintext check-in code, as shown by the holder
@@ -345,9 +340,7 @@ contract EventTicket is ERC721 {
     // Platform: sweep unclaimed leftovers after refunds
 
     /**
-     * @notice After an early closure, whatever refunds were never claimed
-     * can be swept by the platform once the sweep delay has passed after
-     * endBlock
+     * @notice After an early closure, remaining refunds can be swept by the platform once the sweep delay has passed after endBlock.
      */
     function sweepLeftovers() external {
         require(msg.sender == platform, "Only the platform can sweep");
@@ -365,8 +358,7 @@ contract EventTicket is ERC721 {
      * @dev ERC-721 transfer hook, the single acquisition checkpoint:
      * transfers only through the resale market, one ticket per address,
      * and validators (including the organiser) may not acquire tickets.
-     * A resold ticket's check-in code is cleared - the new owner sets
-     * their own
+     * A resold ticket's check-in code is cleared - the new owner sets their own.
      */
     function _update(
         address to,

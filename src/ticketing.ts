@@ -1,11 +1,8 @@
 /**
  * What we do with the EventFactory / EventTicket contracts.
  *
- * These functions only talk to the chain and return data - they never
- * prompt or print, so the user interface stays separate. Only the seed
- * script holds the compiled factory artifact (it deploys the factory); the
- * role programs know nothing but the fragment ABIs below - the public
- * interface of contracts someone else deployed.
+ * These functions only talk to the chain and return data.
+ * The role programs know nothing but the fragment ABIs below - the public interface of contracts someone else deployed.
  */
 
 import { keccak256, parseAbi, parseEventLogs, toBytes, type Address, type Hex } from "viem";
@@ -19,8 +16,6 @@ const factoryAbi = parseAbi([
 ]);
 
 const eventAbi = parseAbi([
-  // reads (current state is read from the indexer's database; the chain is
-  // consulted only where a client must not trust the cache)
   "function isValidator(address) view returns (bool)",
   "function balanceOf(address) view returns (uint256)",
   // organiser
@@ -134,12 +129,10 @@ export async function holdsTicket(
   return balance > 0n;
 }
 
-// Writes. Every write takes the signer's private key from the login
-// session - the contract enforces who may do what. Whoever sends the
-// transaction pays its own gas; there is no reimbursement.
+// Writes. Every write takes the signer's private key from the login session - the contract enforces who may do what. 
+// Whoever sends the transaction pays its own gas; there is no reimbursement.
 
-// One transaction helper for every contract write: estimate, send, await
-// the receipt.
+// One transaction helper for every contract write: estimate, send, await the receipt.
 async function write(
   chain: Chain,
   address: Address,
@@ -200,8 +193,7 @@ export const unlist = (c: Chain, a: Address, k: Hex, id: bigint) =>
 export const claimRefund = (c: Chain, a: Address, k: Hex, id: bigint) =>
   write(c, a, k, "claimRefund", [id]);
 
-// keccak256 of a check-in code's plaintext, matching the contract's
-// keccak256(abi.encodePacked(code)) - the commit half of check-in.
+// keccak256 of a check-in code's plaintext, matching the contract's keccak256(abi.encodePacked(code)) - the commit half of check-in.
 // Case-normalised so a validator retyping the code isn't tripped up by case.
 export const hashCheckInCode = (code: string) => keccak256(toBytes(code.toUpperCase()));
 

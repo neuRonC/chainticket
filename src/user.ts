@@ -1,16 +1,5 @@
 /**
- * The ticket user's program (buyer/holder).
- *
- * Login first. Buying starts from the event (pick one on sale, then all
- * offers - the official primary sale and other users' listings - sorted by
- * price ascending); sales and the resale market close when entry opens.
- * Tickets can be listed for resale under the contract-enforced cap, and
- * refunds claimed after an early closure. All prices are gas-inclusive.
- *
- * Each held ticket needs a check-in code before the gate will accept it -
- * a stand-in for a QR code. Only its hash goes on-chain (commit); the
- * plaintext is generated and kept here, and shown at the gate (reveal). A
- * resale clears the code, so the new owner generates their own.
+ * The ticket user's program.
  */
 
 import { randomBytes } from "node:crypto";
@@ -75,8 +64,8 @@ async function main() {
 
     try {
       if (action === "buy") {
-        // Step 1: pick the event. On sale = before entry, not closed, with
-        // released stock or someone else's listing.
+        // Step 1: pick the event. 
+        // On sale = before entry, not closed, with released stock or someone else's listing.
         const othersListings = (ev: EventRow) =>
           db
             .listTicketsOfEvent(ev.event_id)
@@ -161,8 +150,6 @@ async function main() {
           ui.showSuccess(`✔ Purchased resale ticket #${t.ticket_id}, payment settled to the seller`);
         }
       } else if (action === "manage") {
-        // Level A: repeatedly pick a ticket to manage. Only backing out
-        // here (CTRL+C or "<- Back") returns to the main menu.
         for (;;) {
           const myTickets = db.listTicketsByOwner(session.address);
           if (myTickets.length === 0) {
@@ -187,9 +174,6 @@ async function main() {
             continue;
           }
 
-          // Level B: the action menu for this one ticket. A CTRL+C at its
-          // own prompt is caught here, landing back on "Select a ticket to
-          // manage:" instead of the main menu.
           try {
             for (;;) {
               const freshT = db.getTicket(t.event_id, t.ticket_id)!;
@@ -208,8 +192,6 @@ async function main() {
               ]);
               if (sub === "back") break;
 
-              // Level C: this action's own detail entry. A CTRL+C here is
-              // caught right below, landing back on "Manage ticket:".
               try {
                 if (sub === "code") {
                   if (freshT.status !== "Valid") {
@@ -253,12 +235,12 @@ async function main() {
                   }
                 }
               } catch (error) {
-                if (ui.isCancel(error)) continue; // CTRL+C mid-entry: back to "Manage ticket:"
+                if (ui.isCancel(error)) continue;
                 ui.showError(error);
               }
             }
           } catch (error) {
-            if (ui.isCancel(error)) continue; // CTRL+C at "Manage ticket:": back to "Select a ticket to manage:"
+            if (ui.isCancel(error)) continue;
             ui.showError(error);
           }
         }
@@ -277,7 +259,7 @@ async function main() {
         ui.showSuccess(`✔ Refund complete, balance ${ui.eth(after)}`);
       }
     } catch (error) {
-      if (ui.isCancel(error)) continue; // CTRL+C inside a flow: back to menu
+      if (ui.isCancel(error)) continue;
       ui.showError(error);
     }
   }
@@ -286,7 +268,6 @@ async function main() {
   process.exit(0);
 }
 
-// CTRL+C at a top-level prompt exits quietly instead of dumping a stack.
 main().catch((error) => {
   if (error instanceof Error && error.name === "ExitPromptError") process.exit(0);
   throw error;

@@ -1,14 +1,5 @@
 /**
  * The organiser's program.
- *
- * Login first; the contracts enforce that only the organiser of an event
- * may manage it. Creating an event deploys a fresh EventTicket contract
- * through the factory with block-number timing (entry and end). Tickets go
- * on sale in batches (releaseTickets); whoever sends a transaction pays its
- * own gas, no deposit required. The organiser is automatically a validator,
- * may authorise more until the event ends, and can close early (opening
- * refunds); normally-ended events are settled automatically by the
- * platform's keeper.
  */
 
 import type { Address } from "viem";
@@ -104,8 +95,6 @@ async function main() {
           entryBlock,
           endBlock,
         );
-        // Give the indexer a moment to pick the event up before a later
-        // menu, which reads only the local database, looks for it.
         for (let i = 0; i < 20 && !db.getEvent(Number(eventId)); i++) {
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
@@ -117,8 +106,6 @@ async function main() {
           ui.showSuccess(`✔ Event #${eventId} "${name}" created`);
         }
       } else if (action === "manage") {
-        // Level A: repeatedly pick an event to manage. Only backing out
-        // here (CTRL+C or "<- Back") returns to the main menu.
         for (;;) {
           const myEvents = db.listEventsByOrganiser(session.address);
           if (myEvents.length === 0) {
@@ -133,9 +120,6 @@ async function main() {
             continue;
           }
 
-          // Level B: the action menu for this one event. A CTRL+C at its
-          // own prompt is caught here, landing back on "Select event to
-          // manage:" instead of the main menu.
           try {
             for (;;) {
               const freshEv = db.getEvent(ev.event_id)!;
@@ -149,8 +133,6 @@ async function main() {
               ]);
               if (sub === "back") break;
 
-              // Level C: one action's own detail entry. A CTRL+C here is
-              // caught right below, landing back on "Manage event:".
               try {
                 if (sub === "release") {
                   if (freshEv.closed || currentBlock >= freshEv.entry_block) {
@@ -165,8 +147,6 @@ async function main() {
                   await releaseTickets(chain, freshEv.contract as Address, session.privateKey, BigInt(count));
                   ui.showSuccess(`✔ Released ${count} tickets`);
                 } else if (sub === "validator") {
-                  // Level D: authorize/unauthorize. A CTRL+C at its own
-                  // prompt is caught here, landing back on "Manage event:".
                   for (;;) {
                     const validators = db.listValidators(freshEv.event_id);
                     ui.showInfo("[Validators]");
@@ -183,8 +163,6 @@ async function main() {
                     ]);
                     if (vsub === "back") break;
 
-                    // Level E: this specific validator action's own detail
-                    // entry. A CTRL+C here lands back on "Manage validator:".
                     try {
                       if (vsub === "authorize") {
                         if (freshEv.closed || currentBlock >= freshEv.end_block) {
@@ -241,7 +219,7 @@ async function main() {
                         ui.showSuccess(`✔ Unauthorized ${usernameOf(db, target) ?? target}`);
                       }
                     } catch (error) {
-                      if (ui.isCancel(error)) continue; // CTRL+C mid-entry: back to "Manage validator:"
+                      if (ui.isCancel(error)) continue;
                       ui.showError(error);
                     }
                   }
@@ -261,18 +239,17 @@ async function main() {
                   ui.showSuccess(`✔ Event #${freshEv.event_id} closed, refunds are now open`);
                 }
               } catch (error) {
-                if (ui.isCancel(error)) continue; // CTRL+C mid-entry: back to "Manage event:"
+                if (ui.isCancel(error)) continue;
                 ui.showError(error);
               }
             }
           } catch (error) {
-            if (ui.isCancel(error)) continue; // CTRL+C at "Manage event:": back to "Select event to manage:"
-            ui.showError(error);
+            if (ui.isCancel(error)) continue;
           }
         }
       }
     } catch (error) {
-      if (ui.isCancel(error)) continue; // CTRL+C inside "create": back to the main menu
+      if (ui.isCancel(error)) continue;
       ui.showError(error);
     }
   }
@@ -281,7 +258,6 @@ async function main() {
   process.exit(0);
 }
 
-// CTRL+C at a top-level prompt exits quietly instead of dumping a stack.
 main().catch((error) => {
   if (error instanceof Error && error.name === "ExitPromptError") process.exit(0);
   throw error;

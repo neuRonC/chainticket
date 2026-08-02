@@ -1,11 +1,5 @@
 /**
- * One-command demo staging: wipe the database, deploy the EventFactory
- * (via deployPlatform, which also provisions the platform account), and
- * add the demo users (org/user1/user2/user3/val) on top.
- *
- * Run once after starting anvil (`npm run seed`). Re-running is a full
- * reset - a fresh factory makes every previously indexed event stale, so
- * the database goes with it.
+ * One-command demo staging: wipe the database, deploy the EventFactory, add the demo users (org/user1/user2/user3/val) on top.
  */
 
 import { rmSync } from "node:fs";

@@ -1,15 +1,11 @@
 /**
  * The public audit interface (FR4) - no login, anyone can trace an event.
  *
- * Enter an event id to see that event's audit page: its indexed state plus
- * the on-chain addresses (the event's own contract and the factory) that
- * are the source of truth behind this data - every history row also
- * carries its block number and transaction hash, so any line can be
- * independently re-checked against the chain with a node or explorer of
- * the auditor's choosing. Inside an event, enter a ticket id for that
- * ticket's full lifecycle, or `all` for the whole event history. CTRL+C
- * backs out one level at a time (ticket lookup -> event -> exit), same as
- * every other role program.
+ * Enter an event id to see that event's audit page: 
+ * its indexed state plus the on-chain addresses (the event's own contract and the factory) that
+ * are the source of truth behind this data - 
+ * every history row also carries its block number and transaction hash, 
+ * so any line can be independently re-checked against the chain with a node or explorer of the auditor's choosing.
  */
 
 import { loadConfig } from "./config";
@@ -61,9 +57,7 @@ async function main() {
       }\n`,
     );
 
-    // Inside the event: per-ticket lifecycle, or the whole event history.
-    // CTRL+C anywhere in here is caught right at this level, so it returns
-    // to "Enter event ID" rather than exiting the whole program.
+    // Ticket lookup, or `all` for the whole event history.
     try {
       for (;;) {
         const ticketInput = await ui.askText("Ticket ID:");
@@ -89,7 +83,7 @@ async function main() {
         console.log();
       }
     } catch (error) {
-      if (ui.isCancel(error)) continue; // CTRL+C mid-lookup: back to "Enter event ID"
+      if (ui.isCancel(error)) continue;
       ui.showError(error);
     }
   }
@@ -98,7 +92,6 @@ async function main() {
   process.exit(0);
 }
 
-// CTRL+C at a top-level prompt exits quietly instead of dumping a stack.
 main().catch((error) => {
   if (error instanceof Error && error.name === "ExitPromptError") process.exit(0);
   throw error;

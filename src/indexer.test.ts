@@ -1,7 +1,6 @@
 /**
- * Unit tests for the indexer's pure event-application functions - no
- * chain, no network. A DecodedLog is built by hand and applied straight
- * to a fresh in-memory database.
+ * Unit tests for the indexer's pure event-application functions - no chain, no network. 
+ * A DecodedLog is built by hand and applied straight to a fresh in-memory database.
  */
 
 import { describe, expect, test } from "vitest";

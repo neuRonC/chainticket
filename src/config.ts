@@ -1,7 +1,7 @@
 /**
- * Reads config.yaml: the active network profile, the sweep delay, the demo
- * accounts the seed script provisions into the user store, and the shared
- * database path.
+ * Reads config.yaml: the active network profile, the sweep delay, 
+ * the demo accounts the seed script provisions into the user store, 
+ * and the shared database path.
  */
 
 import { readFileSync } from "node:fs";
@@ -38,8 +38,8 @@ export function loadConfig(): Config {
   const profile = data.networks[data.network];
   if (!profile) throw new Error(`Unknown network profile: ${data.network}`);
 
-  // The URL is either written in the profile (anvil) or taken from an
-  // environment variable (sepolia), so no provider secret enters the repo.
+  // The URL is either written in the profile (anvil) or taken from an environment variable sepolia), 
+  // so no provider secret enters the repo.
   const providerUrl = profile.url ?? process.env[profile.urlEnv ?? ""];
   if (!providerUrl) {
     throw new Error(

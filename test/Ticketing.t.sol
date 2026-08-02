@@ -435,8 +435,6 @@ contract TicketingTest is Test {
         evt.markUsed(ticketId, "x");
     }
 
-    // SETTLEMENT (keeper pattern)
-
     /// @notice After endBlock anyone settles; the organiser receives all
     /// revenue; closing is then blocked.
     function test_settle() public {

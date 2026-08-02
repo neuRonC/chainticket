@@ -2,9 +2,9 @@
  * Remembers the deployed EventFactory so the programs can find it.
  *
  * The seed script writes the factory's address to tmp/deployment.json;
- * every program reads it on start-up. The factory is the single well-known
- * address of the whole system - each event's contract address is then found
- * through the factory's on-chain registry.
+ * every program reads it on start-up. 
+ * The factory is the single well-known address of the whole system --- 
+ * each event's contract address is then found through the factory's on-chain registry.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";

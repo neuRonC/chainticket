@@ -1,6 +1,6 @@
 /**
- * Unit tests for the SQLite schema and its query helpers - no chain, no
- * network. Each test opens a fresh in-memory database.
+ * Unit tests for the SQLite schema and its query helpers - no chain, no network. 
+ * Each test opens a fresh in-memory database.
  */
 
 import { describe, expect, test } from "vitest";

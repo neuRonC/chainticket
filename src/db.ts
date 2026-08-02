@@ -1,16 +1,17 @@
 /**
  * The shared off-chain database (SQLite).
  *
- * Holds three groups of data: the local user store (username/password ->
- * address mapping - the chain never sees usernames), the indexed views the
- * indexer derives from contract events (events, tickets, validators), and
- * the append-only history behind the audit interface. Every history row
- * carries its block number and transaction hash, and the audit interface
- * shows each event's contract address, so anything here can be re-checked
- * against the chain - the database is a convenience cache, the chain is the
- * source of truth. The one exception is a ticket's check-in code: the user
- * program writes its plaintext here directly (only the hash ever reaches
- * the chain), so it cannot be recovered from contract events.
+ * Holds three groups of data: 
+ * the local user store (username/password -> address mapping - the chain never sees usernames), 
+ * the indexed views the indexer derives from contract events (events, tickets, validators),
+ * the append-only history behind the audit interface. 
+ * Every history row carries its block number and transaction hash, 
+ * and the audit interface shows each event's contract address, 
+ * so anything here can be re-checked against the chain --- 
+ * the database is a convenience cache, the chain is the source of truth. 
+ * The one exception is a ticket's check-in code: 
+ * the user program writes its plaintext here directly (only the hash ever reaches the chain), 
+ * so it cannot be recovered from contract events.
  *
  * The database file lives under tmp/ as a generated artefact.
  */
@@ -33,7 +34,7 @@ export interface EventRow {
   organiser: string;
   name: string;
   capacity: number;
-  price_wei: string; // Wei as decimal string (SQLite has no bigint)
+  price_wei: string;
   resale_cap_wei: string;
   entry_block: number; // gates open: sales stop, check-in starts
   end_block: number; // event over: settlement possible

@@ -1,17 +1,5 @@
 /**
  * The validator's program - the human oracle at the gate (FR3).
- *
- * Login first; the program then checks on-chain, event by event, which
- * contracts have authorised this address (the organiser authorises by
- * username, and is themselves a validator automatically). Someone no event
- * has authorised is turned away ("You are not authorised as a validator
- * for any event"). Check-in only works during the event window (entry
- * block to end block) - the contract enforces it, the UI shows the phase.
- * The holder must also produce the check-in code they set on their ticket
- * (simulating a QR code); markUsed only accepts a code matching the hash
- * committed on-chain. That signature from an organiser-authorised address,
- * carrying the correct code, is what records the real-world fact "this
- * person entered" onto the chain. The validator pays its own gas.
  */
 
 import type { Address } from "viem";
@@ -85,9 +73,6 @@ async function main() {
           ui.showFailure("Entry has not opened yet for this event.");
           continue;
         }
-        // The check-in desk loop: CTRL+C at "Ticket ID" is caught by the
-        // outer catch, back to the Action: menu. CTRL+C anywhere later in
-        // one ticket's flow is caught right below, back to "Ticket ID".
         for (;;) {
           const query = await ui.askText("Ticket ID or @username:");
 
@@ -137,8 +122,7 @@ async function main() {
             }
             ui.showSuccess(`Ticket #${ticketId} · holder ${holder} · VALID ✔`);
 
-            // The code the holder shows (simulating a QR code) is itself
-            // the verification - the contract only accepts a match.
+            // The code the holder shows is itself the verification - the contract only accepts a match.
             const code = await ui.askText("Code shown by the attendee:");
             const tx = await markUsed(chain, contract, session.privateKey, BigInt(ticketId), code.toUpperCase());
             ui.showSuccess(`✔ Checked in and recorded on-chain, tx ${tx}`);
@@ -149,7 +133,7 @@ async function main() {
         }
       }
     } catch (error) {
-      if (ui.isCancel(error)) continue; // CTRL+C inside a flow: back to menu
+      if (ui.isCancel(error)) continue;
       ui.showError(error);
     }
   }
@@ -158,7 +142,7 @@ async function main() {
   process.exit(0);
 }
 
-// CTRL+C at a top-level prompt exits quietly instead of dumping a stack.
+
 main().catch((error) => {
   if (error instanceof Error && error.name === "ExitPromptError") process.exit(0);
   throw error;

@@ -1,11 +1,9 @@
 /**
- * Everything that talks to the blockchain node, plus reading the compiled
- * contract.
+ * Everything that talks to the blockchain node, plus reading the compiled contract.
  *
- * The clients ride a WebSocket transport: the programs subscribe to contract
- * events, and over a WebSocket the node pushes each event to them as soon as
- * it is emitted (no polling). The chain itself is built from the active
- * network profile, so the same code runs against anvil and Sepolia.
+ * The clients ride a WebSocket transport: the programs subscribe to contract events, 
+ * and over a WebSocket the node pushes each event to them as soon as it is emitted. 
+ * The chain itself is built from the active network profile, so the same code runs against anvil and Sepolia.
  */
 
 import { readFileSync } from "node:fs";
@@ -42,12 +40,8 @@ export function connect(config: Config) {
     transport,
   });
 
-  // Anvil-only test actions (e.g. mine()) - used by scripts like
-  // timetravel.ts. Calling these against Sepolia would simply fail. Its
-  // own transport with a much longer timeout: mining a large batch of
-  // blocks is slow (anvil takes real wall-clock time per block even with
-  // interval 0), and the default request timeout is tuned for ordinary
-  // reads/writes, not that.
+  // Anvil-only test actions (mine(), used by timetravel.ts) - would fail against Sepolia. 
+  // Own transport with a longer timeout: mining a large batch of blocks is real wall-clock time, past the default timeout.
   const testClient = createTestClient({
     chain: viemChain,
     mode: "anvil",
@@ -69,7 +63,7 @@ export function connect(config: Config) {
     return privateKeyToAccount(privateKey).address;
   }
 
-  // The ETH balance (in Wei) held by an address.
+  // The ETH balance held by an address.
   function getBalance(address: Address) {
     return publicClient.getBalance({ address });
   }

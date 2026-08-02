@@ -1,8 +1,6 @@
 /**
- * The user interface: ask the questions, and print the results. Nothing
- * here talks to the blockchain - it just collects input and shows output.
- * Timing is block-number based; helpers here translate blocks to rough
- * human time using the network's block interval.
+ * The user interface: ask the questions, and print the results. 
+ * Nothing here talks to the blockchain - it just collects input and shows output.
  */
 
 import { select, input, confirm, password as passwordPrompt } from "@inquirer/prompts";
@@ -106,13 +104,12 @@ export function askTicket(
   });
 }
 
-// True when the user hit CTRL+C inside a prompt: treat it as "cancel and
-// go back", not as an error.
+// True when the user hit CTRL+C inside a prompt: treat it as "cancel and go back", not as an error.
 export function isCancel(error: unknown): boolean {
   return error instanceof Error && error.name === "ExitPromptError";
 }
 
-// Ask for free-form text; empty input means "go back" (undefined).
+// Ask for free-form text; empty input means "go back".
 export async function askQuery(message: string): Promise<string | undefined> {
   const value = await input({ message });
   return value.trim() === "" ? undefined : value.trim();
@@ -131,8 +128,7 @@ export async function askPositiveInt(
   return Number(value);
 }
 
-// Ask for a non-negative ETH amount. An optional semantic check runs at
-// the field, so a bad value re-prompts instead of aborting the flow.
+// Ask for a non-negative ETH amount. An optional semantic check runs at the field, so a bad value re-prompts instead of aborting the flow.
 export async function askEth(
   message: string,
   defaultValue?: string,
@@ -215,15 +211,12 @@ export function showSuccess(message: string) {
   console.log(green(message));
 }
 
-// Print a highlighted failure line (expected rejections, e.g. a failed
-// login, or "nothing to do" - anything that stops the current action, so
-// it isn't mistaken for plain progress output).
+// Print a highlighted failure line.
 export function showFailure(message: string) {
   console.log(red(message));
 }
 
-// The recurring "who's logged in" status line shown at the top of every
-// menu pass, coloured apart from both progress and failure output.
+// The recurring "who's logged in" status line shown at the top of every menu pass, coloured apart from both progress and failure output.
 export function showIdentity(username: string, address: string, balanceWei: bigint | string) {
   console.log(cyan(`👤 user: ${username} · wallet: ${address} · balance: ${eth(balanceWei)}`));
 }
@@ -236,8 +229,8 @@ function isInsufficientFunds(error: unknown): boolean {
   );
 }
 
-// Show a transaction/contract error without crashing: a bold short message
-// and the decoded revert reason. Enough to debug, not a stack dump.
+// Show a transaction/contract error without crashing: a bold short message and the decoded revert reason. 
+// Enough to debug, not a stack dump.
 export function showError(error: unknown) {
   if (isInsufficientFunds(error)) {
     showFailure("Insufficient wallet balance to complete the transaction");
@@ -247,8 +240,7 @@ export function showError(error: unknown) {
     console.log(`\n${boldRed(String(error))}\n`);
     return;
   }
-  // A decodable revert reason is the whole story - one clean line, no
-  // duplicated viem prose.
+  // A decodable revert reason is the whole story - one clean line, no duplicated viem prose.
   const revert = error.walk((e) => e instanceof ContractFunctionRevertedError);
   if (revert instanceof ContractFunctionRevertedError && revert.reason) {
     console.log(`\n${boldRed(`Transaction rejected by the contract: ${revert.reason}`)}\n`);

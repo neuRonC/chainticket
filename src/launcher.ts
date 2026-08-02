@@ -1,13 +1,6 @@
 #!/usr/bin/env -S npx tsx
 /**
- * A thin launcher: pick a role, and it spawns that role's own script as a
- * separate process (`npm run <role>`) so the session behaves exactly as if
- * it had been started on its own - CTRL+C, prompts, and process.exit() all
- * belong to the child, not this launcher. When the child exits, control
- * returns here to pick another role.
- *
- * Run directly from the project root: `./src/launcher.ts` (or
- * `npm run start`).
+ * A thin launcher: pick a role, and it spawns that role's own script as a separate process.
  */
 
 import { spawn } from "node:child_process";
@@ -42,7 +35,6 @@ async function main() {
   }
 }
 
-// CTRL+C at the role picker exits quietly instead of dumping a stack.
 main().catch((error) => {
   if (error instanceof Error && error.name === "ExitPromptError") process.exit(0);
   throw error;
