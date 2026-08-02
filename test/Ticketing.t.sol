@@ -5,8 +5,7 @@ import "forge-std/Test.sol";
 import "../contracts/EventFactory.sol";
 import "../contracts/EventTicket.sol";
 
-/// @title Unit tests for the EventFactory / EventTicket pair
-/// @dev Arrange-Act-Assert; block-number timing driven with vm.roll
+/// @title Unit tests for the EventFactory / EventTicket
 contract TicketingTest is Test {
     EventFactory public factory;
     EventTicket public evt;
