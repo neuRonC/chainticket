@@ -7,7 +7,7 @@ import "../contracts/EventTicket.sol";
 
 /// @title Unit tests for the EventFactory / EventTicket pair
 /// @dev Arrange-Act-Assert; block-number timing driven with vm.roll
-contract EventTicketTest is Test {
+contract TicketingTest is Test {
     EventFactory public factory;
     EventTicket public evt;
 
@@ -80,6 +80,34 @@ contract EventTicketTest is Test {
         assertEq(evt.entryBlock(), ENTRY, "Entry block mismatch");
         assertEq(evt.endBlock(), END, "End block mismatch");
         assertTrue(evt.isValidator(organiser), "Organiser is auto-validator");
+    }
+
+    /// @notice A second event gets its own id and contract, isolated from
+    /// the first - the registry doesn't leak state between events.
+    function test_factoryMultipleEvents() public {
+        vm.prank(alice); // a different organiser this time
+        (uint256 eventId2, address eventContract2) = factory.createEvent(
+            "Second Show",
+            5,
+            0.1 ether,
+            0.1 ether,
+            ENTRY + 1,
+            END + 1
+        );
+
+        assertEq(factory.numEvents(), 2, "Registry counts both events");
+        assertEq(eventId2, 2, "Second event gets the next id");
+        assertEq(factory.eventContracts(2), eventContract2, "Second event registered");
+        assertTrue(eventContract2 != address(evt), "Distinct contract from the first event");
+
+        EventTicket evt2 = EventTicket(eventContract2);
+        assertEq(evt2.organiser(), alice, "Second event's organiser is independent");
+        assertEq(evt2.price(), 0.1 ether, "Second event's price is independent");
+        assertEq(evt2.capacity(), 5, "Second event's capacity is independent");
+
+        // The first event's own registration is untouched by the second.
+        assertEq(evt.organiser(), organiser, "First event's organiser unaffected");
+        assertEq(factory.eventContracts(1), address(evt), "First event's registry entry unaffected");
     }
 
     /// @notice Reverts on invalid timing or capacity at creation.

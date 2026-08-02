@@ -102,7 +102,7 @@ async function watchTicketContracts(chain: Chain, db: Db) {
 }
 
 // Apply one factory event: register the new event contract.
-function applyFactoryEvent(db: Db, log: DecodedLog) {
+export function applyFactoryEvent(db: Db, log: DecodedLog) {
   if (log.eventName !== "EventCreated") return;
   let fresh = true;
   const a = log.args as {
@@ -140,7 +140,7 @@ function applyFactoryEvent(db: Db, log: DecodedLog) {
 }
 
 // Apply one EventTicket event to the database.
-function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
+export function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
   const base = {
     event_id: eventId,
     block_number: Number(log.blockNumber),
@@ -261,4 +261,7 @@ function applyTicketEvent(db: Db, eventId: number, log: DecodedLog) {
   );
 }
 
-main();
+// Only run as a script, not when imported by tests.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
