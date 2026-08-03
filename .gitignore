@@ -10,3 +10,6 @@ lib/
 # Environment files
 .env
 .env.*
+
+# Demo only
+src/timetravel.ts
