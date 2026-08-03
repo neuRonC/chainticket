@@ -81,8 +81,7 @@ contract TicketingTest is Test {
         assertTrue(evt.isValidator(organiser), "Organiser is auto-validator");
     }
 
-    /// @notice A second event gets its own id and contract, isolated from
-    /// the first - the registry doesn't leak state between events.
+    /// @notice A second event gets its own id and contract, isolated from the first.
     function test_factoryMultipleEvents() public {
         vm.prank(alice); // a different organiser this time
         (uint256 eventId2, address eventContract2) = factory.createEvent(
@@ -132,6 +131,10 @@ contract TicketingTest is Test {
 
     /// @notice Reverts beyond capacity, after entry, or from a non-organiser.
     function test_releaseFailures() public {
+        vm.prank(organiser);
+        vm.expectRevert("Count must be positive");
+        evt.releaseTickets(0);
+
         vm.prank(organiser);
         vm.expectRevert("Exceeds capacity");
         evt.releaseTickets(4);
@@ -226,8 +229,53 @@ contract TicketingTest is Test {
         evt.listForResale(ticketId, PRICE);
 
         vm.prank(alice);
+        evt.listForResale(ticketId, PRICE);
+        vm.prank(alice);
+        vm.expectRevert("Ticket is already listed");
+        evt.listForResale(ticketId, PRICE);
+
+        vm.prank(alice);
         vm.expectRevert("Tickets change hands only via the resale market");
         evt.transferFrom(alice, bob, ticketId);
+    }
+
+    /// @notice Unlisting clears the price; only the owner can, and only if listed.
+    function test_unlistRules() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        vm.prank(alice);
+        evt.listForResale(ticketId, PRICE);
+
+        vm.prank(mallory);
+        vm.expectRevert("Only the ticket owner can unlist");
+        evt.unlist(ticketId);
+
+        vm.prank(alice);
+        evt.unlist(ticketId);
+        assertEq(evt.listingPriceOf(ticketId), 0, "Listing cleared");
+
+        vm.prank(alice);
+        vm.expectRevert("Ticket is not listed");
+        evt.unlist(ticketId);
+    }
+
+    /// @notice Buying a listed ticket rejects a non-listing, self-purchase, or wrong amount.
+    function test_buyListedFailures() public {
+        uint256 ticketId = helper_releaseAndBuy();
+
+        vm.prank(bob);
+        vm.expectRevert("Ticket is not listed");
+        evt.buyListed{value: PRICE}(ticketId);
+
+        vm.prank(alice);
+        evt.listForResale(ticketId, PRICE);
+
+        vm.prank(alice);
+        vm.expectRevert("Cannot buy your own listing");
+        evt.buyListed{value: PRICE}(ticketId);
+
+        vm.prank(bob);
+        vm.expectRevert("Incorrect payment");
+        evt.buyListed{value: PRICE - 1}(ticketId);
     }
 
     /// @notice Listings and purchases stop when entry opens.
@@ -287,6 +335,16 @@ contract TicketingTest is Test {
         vm.prank(alice);
         evt.setCheckInCode(ticketId, hash);
         assertEq(evt.checkInCodeHash(ticketId), hash, "Hash stored");
+
+        vm.prank(organiser);
+        evt.authorizeValidator(validator);
+        vm.roll(ENTRY);
+        vm.prank(validator);
+        evt.markUsed(ticketId, "secret");
+
+        vm.prank(alice);
+        vm.expectRevert("Used tickets cannot be recoded");
+        evt.setCheckInCode(ticketId, keccak256(abi.encodePacked("new")));
     }
 
     /// @notice markUsed rejects a missing or wrong code.
@@ -306,6 +364,44 @@ contract TicketingTest is Test {
         vm.prank(validator);
         vm.expectRevert("Wrong check-in code");
         evt.markUsed(ticketId, "guess");
+    }
+
+    /// @notice Only an authorised validator can check in a ticket.
+    function test_markUsedFailure_notValidator() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        string memory code = helper_setCode(ticketId, alice);
+        vm.roll(ENTRY);
+
+        vm.prank(mallory);
+        vm.expectRevert("Only an authorised validator can call");
+        evt.markUsed(ticketId, code);
+    }
+
+    /// @notice A ticket cannot be checked in twice.
+    function test_markUsedFailure_alreadyUsed() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        string memory code = helper_setCode(ticketId, alice);
+        vm.roll(ENTRY);
+        vm.prank(organiser);
+        evt.markUsed(ticketId, code);
+
+        vm.prank(organiser);
+        vm.expectRevert("Ticket is already used");
+        evt.markUsed(ticketId, code);
+    }
+
+    /// @notice Checking in a listed ticket automatically pulls it off the market.
+    function test_markUsedUnlistsAListedTicket() public {
+        uint256 ticketId = helper_releaseAndBuy();
+        string memory code = helper_setCode(ticketId, alice);
+        vm.prank(alice);
+        evt.listForResale(ticketId, PRICE);
+        vm.roll(ENTRY);
+
+        vm.prank(organiser);
+        evt.markUsed(ticketId, code);
+
+        assertEq(evt.listingPriceOf(ticketId), 0, "Auto-unlisted on check-in");
     }
 
     /// @notice A resale clears the previous owner's code; the new owner sets their own.
@@ -345,6 +441,10 @@ contract TicketingTest is Test {
         assertTrue(evt.isValidator(validator));
 
         vm.prank(organiser);
+        evt.revokeValidator(validator);
+        assertFalse(evt.isValidator(validator), "Revoked");
+
+        vm.prank(organiser);
         vm.expectRevert("Ticket holders cannot be validators");
         evt.authorizeValidator(alice);
 
@@ -362,6 +462,21 @@ contract TicketingTest is Test {
         evt.revokeValidator(validator);
     }
 
+    /// @notice Only the organiser can authorise, revoke, or close.
+    function test_organiserOnlyGuards() public {
+        vm.prank(mallory);
+        vm.expectRevert("Only the organiser can call");
+        evt.authorizeValidator(mallory);
+
+        vm.prank(mallory);
+        vm.expectRevert("Only the organiser can call");
+        evt.revokeValidator(organiser);
+
+        vm.prank(mallory);
+        vm.expectRevert("Only the organiser can call");
+        evt.closeEvent();
+    }
+
     // EARLY CLOSURE AND REFUNDS
 
     /// @notice Closing before entry: no payout, every ticket refundable.
@@ -373,6 +488,10 @@ contract TicketingTest is Test {
 
         assertTrue(evt.refundsOpen(), "Refunds open");
         assertEq(organiser.balance, organiserBefore, "No payout before entry");
+
+        vm.prank(mallory);
+        vm.expectRevert("Only the ticket owner can claim");
+        evt.claimRefund(ticketId);
 
         uint256 aliceBefore = alice.balance;
         vm.prank(alice);
@@ -428,14 +547,25 @@ contract TicketingTest is Test {
         vm.expectRevert("Event is closed");
         evt.listForResale(ticketId, PRICE);
 
+        vm.prank(alice);
+        vm.expectRevert("Event is closed");
+        evt.setCheckInCode(ticketId, keccak256(abi.encodePacked("x")));
+
+        vm.prank(organiser);
+        vm.expectRevert("Event is closed");
+        evt.releaseTickets(1);
+
+        vm.prank(organiser);
+        vm.expectRevert("Event is closed");
+        evt.closeEvent();
+
         vm.roll(ENTRY);
         vm.prank(organiser);
         vm.expectRevert("Event is closed");
         evt.markUsed(ticketId, "x");
     }
 
-    /// @notice After endBlock anyone settles; the organiser receives all
-    /// revenue; closing is then blocked.
+    /// @notice After endBlock anyone settles; the organiser receives all revenue; closing is then blocked.
     function test_settle() public {
         helper_releaseAndBuy();
 

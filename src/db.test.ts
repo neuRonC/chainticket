@@ -1,5 +1,5 @@
 /**
- * Unit tests for the SQLite schema and its query helpers - no chain, no network. 
+ * Unit tests for the SQLite schema and its query helpers. 
  * Each test opens a fresh in-memory database.
  */
 
@@ -30,6 +30,24 @@ describe("events", () => {
     const ev = db.getEvent(1);
     expect(ev?.name).toBe("Show");
     expect(ev?.capacity).toBe(10);
+  });
+
+  test("setReleased and setClosed update event state", () => {
+    const db = freshDb();
+    db.upsertEvent(baseEvent);
+    db.setReleased(1, 5);
+    db.setClosed(1, true);
+    const ev = db.getEvent(1);
+    expect(ev?.released).toBe(5);
+    expect(ev?.closed).toBe(1);
+    expect(ev?.refunds_open).toBe(1);
+  });
+
+  test("listEvents and listEventsByOrganiser look up case-insensitively", () => {
+    const db = freshDb();
+    db.upsertEvent(baseEvent);
+    expect(db.listEvents()).toHaveLength(1);
+    expect(db.listEventsByOrganiser("0XORG")).toHaveLength(1);
   });
 });
 
@@ -67,6 +85,17 @@ describe("tickets", () => {
 
     expect(db.getTicket(1, 1)?.listed_price_wei).toBe("0");
   });
+
+  test("setListingPrice, listTicketsOfEvent and listTicketsByOwner", () => {
+    const db = freshDb();
+    db.upsertEvent(baseEvent);
+    db.insertTicket(1, 1, "0xOwner");
+    db.setListingPrice(1, 1, "50");
+
+    expect(db.getTicket(1, 1)?.listed_price_wei).toBe("50");
+    expect(db.listTicketsOfEvent(1)).toHaveLength(1);
+    expect(db.listTicketsByOwner("0XOWNER")).toHaveLength(1);
+  });
 });
 
 describe("history", () => {
@@ -83,6 +112,15 @@ describe("history", () => {
     expect(db.appendHistory(row)).toBe(true);
     expect(db.appendHistory(row)).toBe(false);
     expect(db.getEventHistory(1)).toHaveLength(1);
+  });
+
+  test("getHistory scopes to one ticket, getEventHistory to the whole event", () => {
+    const db = freshDb();
+    db.appendHistory({ event_id: 1, ticket_id: 1, block_number: 1, tx_hash: "0xA", kind: "K", detail: "d" });
+    db.appendHistory({ event_id: 1, ticket_id: 2, block_number: 2, tx_hash: "0xB", kind: "K", detail: "d" });
+
+    expect(db.getHistory(1, 1)).toHaveLength(1);
+    expect(db.getEventHistory(1)).toHaveLength(2);
   });
 });
 
@@ -109,5 +147,13 @@ describe("users", () => {
     });
 
     expect(db.getUserByAddress("0xabcdef")?.username).toBe("alice");
+  });
+
+  test("upsertUser overwrites on a re-seed", () => {
+    const db = freshDb();
+    db.upsertUser({ username: "alice", salt: "s1", pass_hash: "h1", private_key: "0xkey1", address: "0xA" });
+    db.upsertUser({ username: "alice", salt: "s2", pass_hash: "h2", private_key: "0xkey2", address: "0xB" });
+
+    expect(db.getUser("alice")?.address).toBe("0xB");
   });
 });
