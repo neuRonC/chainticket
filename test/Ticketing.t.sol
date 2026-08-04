@@ -121,7 +121,7 @@ contract TicketingTest is Test {
 
     // BATCH RELEASE (FR1)
 
-    /// @notice The organiser releases batches; no deposit is required.
+    /// @notice The organiser releases batches.
     function test_releaseTickets() public {
         helper_release(2);
         assertEq(evt.released(), 2, "Two tickets released");
@@ -178,7 +178,7 @@ contract TicketingTest is Test {
         evt.buy{value: PRICE}();
     }
 
-    /// @notice One ticket per address; validators (incl. organiser) cannot buy.
+    /// @notice One ticket per address; validators cannot buy.
     function test_buyFailure_fairnessRules() public {
         helper_release(3);
         vm.startPrank(alice);
@@ -321,7 +321,7 @@ contract TicketingTest is Test {
         evt.markUsed(ticketId, code);
     }
 
-    // CHECK-IN CODE (commit-reveal)
+    // CHECK-IN CODE
 
     /// @notice Only the current owner can set a code, and only on a valid ticket.
     function test_setCheckInCodeRules() public {
