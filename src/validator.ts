@@ -127,7 +127,7 @@ async function main() {
             const tx = await markUsed(chain, contract, session.privateKey, BigInt(ticketId), code.toUpperCase());
             ui.showSuccess(`✔ Checked in and recorded on-chain, tx ${tx}`);
           } catch (error) {
-            if (ui.isCancel(error)) continue; // CTRL+C mid-ticket: back to "Ticket ID"
+            if (ui.isCancel(error)) continue;
             ui.showError(error);
           }
         }

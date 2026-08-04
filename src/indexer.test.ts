@@ -2,10 +2,13 @@
  * Unit tests for the indexer.
  */
 
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { openDatabase } from "./db";
 import { applyFactoryEvent, applyTicketEvent } from "./indexer";
 import type { DecodedLog } from "./ticketing";
+
+// applyFactoryEvent/applyTicketEvent log to stdout for the live indexer CLI - silence that here.
+vi.spyOn(console, "log").mockImplementation(() => {});
 
 function fakeLog(eventName: string, args: Record<string, unknown>): DecodedLog {
   return {

@@ -35,8 +35,7 @@ contract EventFactory {
 
     /**
      * @dev The deployer becomes the platform
-     * @param _sweepDelay Blocks after an event's endBlock until the
-     * platform may sweep unclaimed refunds
+     * @param _sweepDelay Blocks after an event's endBlock until the platform may sweep unclaimed refunds
      */
     constructor(uint256 _sweepDelay) {
         platform = msg.sender;

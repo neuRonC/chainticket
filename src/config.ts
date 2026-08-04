@@ -1,7 +1,5 @@
 /**
- * Reads config.yaml: the active network profile, the sweep delay, 
- * the demo accounts the seed script provisions into the user store, 
- * and the shared database path.
+ * Reads config.yaml: the active network profile, the sweep delay, the demo accounts the seed script provisions into the user store, and the shared database path.
  */
 
 import { readFileSync } from "node:fs";
