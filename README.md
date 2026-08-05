@@ -1,11 +1,12 @@
 # ChainTicket
 
-Blockchain PoC for auditable event-ticket lifecycle management: batch
-primary sale → price-capped resale → gate validation → automatic
-settlement, with early-closure refunds. No platform fee, no deposit —
-whoever sends a transaction pays its own gas. Linux only below.
+Blockchain PoC for auditable event-ticket lifecycle management:
+primary sale → price-capped resale → gate validation → automatic settlement, with early-closure refunds.
+Whoever sends a transaction pays its own gas.
 
-## Setup
+## Usage
+
+### Setup
 
 ```sh
 npm install
@@ -13,57 +14,103 @@ forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts
 forge build
 ```
 
-## Run
+### Run (demo)
 
 Three long-running processes, each in its own terminal, in this order:
 
 ```sh
-npm run node       # terminal 1: local chain (anvil, 1s blocks) - leave running
-npm run seed       # terminal 2: full reset - deploys + creates demo accounts
-npm run indexer    # terminal 3: keeper / event sync - leave running
+npm run node
+npm run seed # or 'npm run deploy' to skip creating demo accounts
+npm run indexer
 ```
 
 Then, in any other terminal, act as a role:
 
 ```sh
-npm run start        # role picker (spawns whichever of the below you choose)
-npm run organizer     # login required
-npm run user           # login required
-npm run validator     # login required + on-chain check
-npm run audit          # no login
+npm run start # launch the role picker
 ```
 
-Demo identities (password `demo123`): `platform`, `org`, `user1`/`user2`/`user3`, `val`.
-
-Fast-forward the chain (anvil mines 1 block/second):
+or
 
 ```sh
-npm run timetravel -- 5   # mines enough blocks to skip ~5 minutes
+npm run organizer
+npm run user
+npm run validator
+npm run audit
 ```
 
-## Testing
+Demo identities (password `demo123`): `org`, `user1`/`user2`/`user3`, `val`.
+
+Fast-forward the chain:
 
 ```sh
-forge test
+npm run timetravel -- 5 # mines enough blocks to skip ~5 minutes
 ```
 
-## Demo walkthrough
-
-1. **Organizer** `org` — create event, release a batch, authorise `val`.
-2. **User** `user1` — buy, list for resale. **User** `user2` — buy that
-   listing, generate its check-in code.
-3. **Validator** `val` — check user2 in (`timetravel` past entry first),
-   entering the code user2 shows.
-4. `timetravel` past `endBlock` — indexer auto-settles.
-5. Second event: `user3` buys, `org` closes early, `user3` claims a
-   refund, `timetravel` past the sweep delay.
-6. **Audit** — look up the event and the ticket's history.
-
-## Sepolia deployment
-
-Set `network: sepolia` in `config.yaml`, provide `SEPOLIA_RPC_URL` /
-`SEPOLIA_PRIVATE_KEY` in the environment, then:
+### Testing
 
 ```sh
-npm run deploy   # deploys the factory + provisions the platform account
+npm run test
 ```
+
+## Project Structure
+
+### contract/
+
+- `EventFactory.sol` — deploys a fresh `EventTicket` per event
+- `EventTicket.sol` — one event's full lifecycle: sale, resale, check-in, settlement
+
+### test/
+
+- `Ticketing.t.sol` — Foundry tests for both contracts
+
+### src/
+
+Files in `src/` are split into two kinds:
+**scripts** (have their own `main()`, run directly)
+**modules** (only export functions, imported by others)
+
+#### Scripts
+
+##### Role-facing
+
+- `user.ts`
+- `organizer.ts`
+- `validator.ts`
+- `audit.ts`
+
+#### Long-running service
+
+- `indexer.ts`
+
+#### Demo Setup
+
+- `deploy.ts` — deploys `EventFactory`
+- `seed.ts` — resets the database, calls `deploy.ts`, provisions demo users
+- `launcher.ts` — a role-select menu that spawns a role scripts as a child processe
+- `timetravel.ts` — mines blocks on the local anvil chain to skip time in the demo
+
+#### Modules
+
+##### Chain interaction
+
+- `chain.ts` — viem client setup (public/wallet/test clients)
+- `ticketing.ts` — wrappers for every contract read/write; the only place that touches the contract ABI
+
+##### Domain state
+
+- `db.ts` — the shared SQLite database (users, indexed events/tickets, audit history)
+- `deployment.ts` — reads/writes `tmp/deployment.json` (the deployed factory address)
+
+##### Identity & config
+
+- `auth.ts` — username/password login, hands back the signing private key
+- `config.ts` — loads `config.yaml`
+
+##### Presentation
+
+- `ui.ts` — shared CLI prompts/formatting used by every script
+
+#### Tests
+
+Each `*.test.ts` sits next to the module it tests

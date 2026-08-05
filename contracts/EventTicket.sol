@@ -312,10 +312,8 @@ contract EventTicket is ERC721 {
     // Validators: gate check-in during the event window (FR3)
 
     /**
-     * @notice Mark a ticket as used at the gate. 
-     * Only during the event window (entry to end); 
-     * The holder's code is the reveal half of the commit-reveal scheme set up by `setCheckInCode`.
-     * A listed ticket is automatically unlisted.
+     * @notice Mark a ticket as used at the gate
+     * Only during the event window (entry to end)
      *
      * @param ticketId Ticket to mark as used
      * @param code Plaintext check-in code, as shown by the holder
