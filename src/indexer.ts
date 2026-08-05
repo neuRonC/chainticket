@@ -45,7 +45,7 @@ async function main() {
   const factoryPast = await getPastFactoryEvents(chain, factory);
   for (const log of factoryPast) applyFactoryEvent(db, log);
   await watchTicketContracts(chain, db);
-  ui.showInfo("Backfill complete. Waiting for new events (CTRL+C to exit)...\n");
+  ui.showInfo("Backfill complete. Waiting for new events...\n");
 
   chain.publicClient.watchBlockNumber({
     onBlockNumber: async (blockNumber) => {
