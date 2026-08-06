@@ -6,6 +6,6 @@ node_modules/
 lib/
 
 # Submission only
-address.txt
-readme.txt
-submission.sh
+*.txt
+*.sh
+*.pptx
