@@ -4,3 +4,8 @@ tmp/
 # Installed dependencies
 node_modules/
 lib/
+
+# Submission only
+address.txt
+readme.txt
+submission.sh
