@@ -1,8 +1,14 @@
 # ChainTicket
 
-Blockchain PoC for auditable event-ticket lifecycle management:
-primary sale → price-capped resale → gate validation → automatic settlement, with early-closure refunds.
-Whoever sends a transaction pays its own gas.
+Blockchain PoC for auditable event-ticket lifecycle management.
+
+## Dependencies
+
+TypeScript / Node — managed by `npm` via `package.json` and locked in `package-lock.json`
+
+Solidity / Foundry — managed by `forge` via `foundry.toml` and locked in `foundry.lock`
+
+see **Usage-Setup** for more instructions
 
 ## Usage
 
@@ -28,15 +34,6 @@ Then, in any other terminal, act as a role:
 
 ```sh
 npm run start # launch the role picker
-```
-
-or
-
-```sh
-npm run organizer
-npm run user
-npm run validator
-npm run audit
 ```
 
 Demo identities (password `demo123`): `org`, `user1`/`user2`/`user3`, `val`.
